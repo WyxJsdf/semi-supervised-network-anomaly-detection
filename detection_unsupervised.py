@@ -6,8 +6,10 @@ from sklearn.utils import shuffle
 from unsupervised.IsolateForest import IsolationForest
 from unsupervised.LocalOutlierFactor import LocalOutlierFactor
 from unsupervised.OneClassSVM import OneClassSVM
+from unsupervised.AutoEncoder import AutoEncoder
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import f1_score, precision_score, recall_score
+from sklearn.metrics import roc_auc_score
 
 def parse_arguments(argv):
     parser = argparse.ArgumentParser()
@@ -64,11 +66,18 @@ def exec_one_class_svm(data, label, raw_label):
     print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf" %(precision, recall, f1_score))
 
 def exec_local_outlier_factor(data, label, raw_label):
-    local_outlier_factor = LocalOutlierFactor()
+    local_outlier_factor = LocalOutlierFactor(contamination=0.1, n_jobs=2)
     local_outlier_factor.train_model(data)
     predicted_label = local_outlier_factor.evaluate_model(data)
     precision, recall, f1_score = eval_data(label, predicted_label, raw_label)
     print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf" %(precision, recall, f1_score))
+
+def exec_autoencoder(data, label, raw_label):
+    autoencoder = AutoEncoder(data.shape[-1])
+    autoencoder.train_model(data)
+    precision_score = autoencoder.evaluate_model(data)
+    roc=np.round(roc_auc_score(label, precision_score))
+    print("roc= %.6lf" %(roc))
 
 def main(args):
     dataset = read_data(args.inputpath)
@@ -79,7 +88,10 @@ def main(args):
     data = scale_data(data)
     print("Preprocessing Data done......")
 
-    
+    # exec_isolate_forest(data, label, raw_label)
+    exec_local_outlier_factor(data, label, raw_label)
+    # exec_one_class_svm(data, label, raw_label)
+    exec_autoencoder(data, label, raw_label)
 
 if __name__ == '__main__':
 	main(parse_arguments(sys.argv[1:]))

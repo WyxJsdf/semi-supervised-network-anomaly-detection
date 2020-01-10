@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest as IsolationF
-from sklearn.metrics import f1_score, precision_score, recall_score
 
 class IsolationForest(object):
 

@@ -1,23 +1,48 @@
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import IsolationForest as IsolationF
-from sklearn.metrics import f1_score, precision_score, recall_score
+from keras.models import Sequential
+from keras.layers import Dense
 
-class IsolationForest(object):
+class AutoEncoder(object):
 
-    def __init__(self, contamination=0.25, max_samples="auto", n_jobs=1):
-        self._contam = contamination
-        self._max_samples = max_samples
-        self._n_jobs = n_jobs
+    def _build_model(self):
+        input_shape=(self._num_features,)
+        model = Sequential()
+        model.add(Dense(64, activation='relu', input_shape=input_shape))
+        model.add(Dense(self._num_features, activation='sigmoid'))
+        return model
+
+    def deep_autoencoder(self):
+        input_shape=(self._num_features,)
+        model = Sequential()
+        model.add(Dense(128, activation='relu', input_shape=input_shape))
+        model.add(Dense(64, activation='relu'))
+        model.add(Dense(128, activation='relu'))
+        model.add(Dense(self._num_features, activation='sigmoid'))
+        return model
+
+    def __init__(self, num_features, hidden_units=64, optimizer='adam', loss='mean_squared_error'):
+        self._model = self._build_model()
+        self._optimizer = optimizer
+        self._loss = loss
 
 
+    def train_model(self, X, epochs=10, batch_size=64):
+        self._model.compile(optimizer=self._optimizer, loss=self._loss)
+        self._model.fit(
+            x=X,
+            y=X,
+            epochs=epochs,
+            batch_size=batch_size,
+        )
 
-    def train_model(self, X):
-        self._model = IsolationF(max_samples=self._max_samples, n_jobs=self._n_jobs,
-            contamination=self._contam, behaviour='new').fit(X)
+    def invert_order(scores):
+        return (-score.ravel())
+
+    def get_distance(X, Y):
+        euclidean_sq = np.square(Y - X)
+        return np.sqrt(np.sum(euclidean_sq, axis=1)).ravel()
 
     def evaluate_model(self, X):
-        predicted_label = self._model.predict(X)
-        maxVal = {-1:1, 1:0}
-        predicted_label[:] = [maxVal[item] for item in predicted_label[:]]
-        return predicted_label
+        predicted_score = self._model.predict(X)
+        return get_distance(X, predicted_score)

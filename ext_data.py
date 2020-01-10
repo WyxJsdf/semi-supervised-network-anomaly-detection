@@ -65,7 +65,7 @@ def merge_all_file():
             else:
                df.to_csv(output_path, index=False, header=False, mode='a+')
 
-def sample_all_file(neg_samples=190000, pos_samples=10000):
+def sample_all_file(neg_samples=490000, pos_samples=10000):
     flag = True
     for i in range(0, len(csvNames)):
         if isMerged[i]:
