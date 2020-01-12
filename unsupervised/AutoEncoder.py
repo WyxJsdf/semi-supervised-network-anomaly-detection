@@ -22,6 +22,7 @@ class AutoEncoder(object):
         return model
 
     def __init__(self, num_features, hidden_units=64, optimizer='adam', loss='mean_squared_error'):
+        self._num_features = num_features
         self._model = self._build_model()
         self._optimizer = optimizer
         self._loss = loss
@@ -36,13 +37,13 @@ class AutoEncoder(object):
             batch_size=batch_size,
         )
 
-    def invert_order(scores):
+    def invert_order(self, scores):
         return (-score.ravel())
 
-    def get_distance(X, Y):
+    def get_distance(self, X, Y):
         euclidean_sq = np.square(Y - X)
         return np.sqrt(np.sum(euclidean_sq, axis=1)).ravel()
 
     def evaluate_model(self, X):
         predicted_score = self._model.predict(X)
-        return get_distance(X, predicted_score)
+        return self.get_distance(X, predicted_score)
