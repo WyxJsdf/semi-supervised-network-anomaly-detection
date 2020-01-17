@@ -1,9 +1,9 @@
 import numpy as np
 import pandas as pd
 from keras.models import Sequential
-from keras.layers import Dense
+from keras.layers import Dense, Dropout
 
-class AutoEncoder(object):
+class AutoEncoderKeras(object):
 
     def _build_model(self):
         input_shape=(self._num_features,)
@@ -15,27 +15,34 @@ class AutoEncoder(object):
     def deep_autoencoder(self):
         input_shape=(self._num_features,)
         model = Sequential()
-        model.add(Dense(128, activation='relu', input_shape=input_shape))
-        model.add(Dense(64, activation='relu'))
-        model.add(Dense(128, activation='relu'))
-        model.add(Dense(self._num_features, activation='sigmoid'))
+        model.add(Dense(100, activation='relu', input_shape=input_shape))
+        # model.add(Dropout(0.1))
+        model.add(Dense(80, activation='relu'))
+        # model.add(Dropout(0.1))
+        model.add(Dense(10))
+        # model.add(Dropout(0.1))
+        model.add(Dense(80, activation='relu'))
+        # model.add(Dropout(0.1))
+        model.add(Dense(100, activation='relu'))
+        model.add(Dense(self._num_features, activation='tanh'))
         return model
 
     def __init__(self, num_features, hidden_units=64, optimizer='adam', loss='mean_squared_error'):
         self._num_features = num_features
-        self._model = self._build_model()
+        self._model = self.deep_autoencoder()
         self._optimizer = optimizer
         self._loss = loss
 
 
     def train_model(self, X, epochs=10, batch_size=64):
         self._model.compile(optimizer=self._optimizer, loss=self._loss)
-        self._model.fit(
+        hist = self._model.fit(
             x=X,
             y=X,
             epochs=epochs,
             batch_size=batch_size,
         )
+        print(hist.history)
 
     def invert_order(self, scores):
         return (-score.ravel())

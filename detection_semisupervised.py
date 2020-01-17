@@ -3,7 +3,7 @@ import argparse
 import numpy as np
 import pandas as pd
 from sklearn.utils import shuffle
-from semi_supervised.AutoEncoder import AutoEncoder
+from semi_supervised.AutoEncoder_keras import AutoEncoder
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import f1_score, precision_score, recall_score
 
@@ -58,8 +58,9 @@ def get_label_n(predicted_score, contam):
 
 def exec_autoencoder(train_labeled_feature, train_label, train_raw_label, train_unlabeled_feature,
                      test_feature, test_label, test_raw_label, contam):
-    autoencoder = AutoEncoder(train_labeled_data.shape[-1])
-    autoencoder.train_model(train_labeled_feature, train_unlabeled_feature, train_label)
+    autoencoder = AutoEncoder(train_labeled_feature.shape[-1])
+    autoencoder.train_model(train_labeled_feature, train_unlabeled_feature, train_label,
+                            test_feature, test_label)
     predicted_label, predicted_score = autoencoder.evaluate_model(test_feature)
     # roc=roc_auc_score(test_label, predicted_score)
     # print("roc= %.6lf" %(roc))
@@ -73,11 +74,13 @@ def main(args):
 
     dataset = shuffle(dataset)
     train_data, test_data = split_dataset_horizontal(dataset, 0.6)
-    train_labeled_data, train_unlabeled_data = split_dataset_horizontal(dataset, 0.2)
+    train_labeled_data, train_unlabeled_data = split_dataset_horizontal(train_data, 0.2)
     train_labeled_feature, train_label, train_raw_label = split_dataset_vertical(train_labeled_data)
     train_unlabeled_feature, _, _ = split_dataset_vertical(train_unlabeled_data)
     test_feature, test_label, test_raw_label = split_dataset_vertical(test_data)
-    data = scale_data(data)
+    train_labeled_feature = scale_data(train_labeled_feature)
+    train_unlabeled_feature = scale_data(train_unlabeled_feature)
+    test_feature = scale_data(test_feature)
     print("Preprocessing Data done......")
     exec_autoencoder(train_labeled_feature, train_label, train_raw_label, train_unlabeled_feature,
                      test_feature, test_label, test_raw_label, args.contam)

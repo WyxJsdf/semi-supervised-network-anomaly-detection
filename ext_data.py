@@ -4,12 +4,12 @@ from sklearn.model_selection import train_test_split
 
 pd.set_option('mode.use_inf_as_na', True) # convert inf to nan
 csvNames = ['Monday-WorkingHours.pcap_ISCX.csv', 'Tuesday-WorkingHours.pcap_ISCX.csv', 'Wednesday-WorkingHours.pcap_ISCX.csv', 
-            'Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX-copy.csv', 'Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv',
+            'Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv', 'Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv',
             'Friday-WorkingHours-Morning.pcap_ISCX.csv', 'Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv',
             'Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv']
 isMerged = [1, 1, 1, 1, 1, 1, 1, 1]
-absolute_path = "..\\data\\IDS2017\\GeneratedLabelledFlows\\TrafficLabelling\\"
-output_path = "cicids2017_sample_0.05.csv"
+absolute_path = "/home/wyx/MachineLearningCSV/MachineLearningCVE/"
+output_path = "cicids2017_sample_0.5_500000.csv"
 labels = {}
 
 def parse_arguments(argv):
@@ -30,7 +30,11 @@ def revert_csv(df):
             labels[row[' Label']] = 1
     df['RawLabel'] = df[' Label']
     df[' Label'] = df[' Label'].apply(lambda x: 0 if 'BENIGN' in x else 1)
-    return df.drop(columns=['Flow ID',' Source IP',' Source Port',' Destination IP',' Protocol',' Timestamp'])
+    try:
+        df = df.drop(columns=['Flow ID',' Source IP',' Source Port',' Destination IP',' Protocol',' Timestamp'])
+    except:
+        pass
+    return df
 
 def sample_rate_pos(df, sampleRate=0.1):
     df_pos = df[df[' Label'] == 1]
@@ -58,14 +62,14 @@ def merge_all_file():
     flag = True
     for i in range(0, len(csvNames)):
         if isMerged[i]:
-            df = parse_csv(csvNames[i], sample_flag=True)
+            df = parse_csv(csvNames[i], sample_flag=False)
             if flag:
                df.to_csv(output_path, index=False)
                flag = False
             else:
                df.to_csv(output_path, index=False, header=False, mode='a+')
 
-def sample_all_file(neg_samples=490000, pos_samples=10000):
+def sample_all_file(neg_samples=250000, pos_samples=250000):
     flag = True
     for i in range(0, len(csvNames)):
         if isMerged[i]:
@@ -76,6 +80,7 @@ def sample_all_file(neg_samples=490000, pos_samples=10000):
                 df = df.append(parse_csv(csvNames[i]))
             print(df.shape)
     df = sample_number(df, pos_samples=pos_samples, neg_samples=neg_samples)
+    df = df.sample(frac=1)
     df.to_csv(output_path, index=False)
 
 def main():
