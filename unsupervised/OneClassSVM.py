@@ -9,7 +9,7 @@ class OneClassSVM(object):
         self._degree = degree
         self._gamma = gamma
         self._nu = nu
-        self.max_iter = max_iter
+        self._max_iter = max_iter
 
     def train_model(self, X):
         self._model = ocSVM(degree=self._degree, kernel=self._kernel,

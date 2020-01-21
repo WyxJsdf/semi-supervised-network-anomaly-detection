@@ -73,14 +73,18 @@ def get_label_n(predicted_score, contam):
     predicted_label = (predicted_score > threshold).astype('int')
     return predicted_label
 
-def exec_isolate_forest(train_feature, train_label, train_raw_label, test_feature, test_label, test_raw_label):
+def exec_isolate_forest(train_feature, train_label, train_raw_label, test_feature, test_label, test_raw_label, contam):
+    print("now execute the model Isolate Forest!")
     isolate_forest = IsolationForest(contamination=contam, max_samples='auto', n_jobs=2)
     isolate_forest.train_model(train_feature)
-    predicted_label = isolate_forest.evaluate_model(test_feature)
+    predicted_score = isolate_forest.evaluate_model_score(test_feature)
+    predicted_label = get_label_n(predicted_score, contam)
+
     precision, recall, f1_score = eval_data(test_label, predicted_label, test_raw_label)
     print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf" %(precision, recall, f1_score))
 
 def exec_one_class_svm(train_feature, train_label, train_raw_label, test_feature, test_label, test_raw_label, contam):
+    print("now execute the model One Class SVM!")
     one_class_svm = OneClassSVM()
     one_class_svm.train_model(train_feature)
     predicted_label = one_class_svm.evaluate_model(test_feature)
@@ -88,13 +92,15 @@ def exec_one_class_svm(train_feature, train_label, train_raw_label, test_feature
     print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf" %(precision, recall, f1_score))
 
 def exec_local_outlier_factor(train_feature, train_label, train_raw_label, test_feature, test_label, test_raw_label, contam):
+    print("now execute the model Local Outlier Factor!")
     local_outlier_factor = LocalOutlierFactor(contamination=contam, n_jobs=2)
     local_outlier_factor.train_model(train_feature)
     predicted_label = local_outlier_factor.evaluate_model(test_feature)
-    precision, recall, f1_score = eval_data(label, predicted_label, raw_label)
+    precision, recall, f1_score = eval_data(test_label, predicted_label, test_raw_label)
     print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf" %(precision, recall, f1_score))
 
 def exec_autoencoder(train_feature, train_label, train_raw_label, test_feature, test_label, test_raw_label, contam):
+    print("now execute the model AutoEncoder by Pytorch!")
     autoencoder = AutoEncoder(train_feature.shape[-1])
     autoencoder.train_model(train_feature)
     predicted_score = autoencoder.evaluate_model(test_feature)
@@ -132,9 +138,9 @@ def main(args):
     test_feature = scale_data(test_feature)
     print("Preprocessing Data done......")
 
-    # exec_isolate_forest(train_feature, train_label, train_raw_label, test_feature, test_label, test_raw_label, args.contam)
+    exec_isolate_forest(train_feature, train_label, train_raw_label, test_feature, test_label, test_raw_label, args.contam)
     # exec_local_outlier_factor(train_feature, train_label, train_raw_label, test_feature, test_label, test_raw_label, args.contam)
-    # exec_one_class_svm(train_feature, train_label, train_raw_label, test_feature, test_label, test_raw_label, args.contam)
+    exec_one_class_svm(train_feature, train_label, train_raw_label, test_feature, test_label, test_raw_label, args.contam)
     exec_autoencoder(train_feature, train_label, train_raw_label, test_feature, test_label, test_raw_label, args.contam)
     # exec_autoencoder_keras(train_feature, train_label, train_raw_label, test_feature, test_label, test_raw_label, args.contam)
 

@@ -36,13 +36,13 @@ class AutoEncoder():
     def __init__(self, num_features):
         self._model = ModelAutoEncoder(num_features).double()
         self._criterion = nn.MSELoss()
-        self._optimizer = torch.optim.Adam(self._model.parameters(), lr=0.0005)
+        self._optimizer = torch.optim.Adam(self._model.parameters(), lr=0.0002)
         self._log_interval = 100
         self._use_cuda = True
         if self._use_cuda:
             self._model = self._model.cuda()
 
-    def train_model(self, feature_unlabeled, epoch=10, batch_size=64):
+    def train_model(self, feature_unlabeled, epoch=30, batch_size=64):
         train_data_unlabeled = Data.TensorDataset(torch.from_numpy(feature_unlabeled), torch.from_numpy(feature_unlabeled))
         train_loader_unlabeled = Data.DataLoader(dataset=train_data_unlabeled, batch_size=batch_size, shuffle=True)
         train_loss = 0
