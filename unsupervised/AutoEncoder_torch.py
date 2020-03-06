@@ -61,7 +61,7 @@ class AutoEncoder():
         #     self._model = self._model.cuda()
         self._model = self._model.to(self._device)
 
-    def train_model(self, feature_unlabeled, epoch=10, batch_size=64):
+    def train_model(self, feature_unlabeled, epoch=30, batch_size=64):
         train_data_unlabeled = Data.TensorDataset(torch.from_numpy(feature_unlabeled), torch.from_numpy(feature_unlabeled))
         train_loader_unlabeled = Data.DataLoader(dataset=train_data_unlabeled, batch_size=batch_size, shuffle=True)
         train_loss = 0
