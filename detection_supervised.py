@@ -3,16 +3,12 @@ import argparse
 import numpy as np
 import pandas as pd
 from sklearn.utils import shuffle
-from semi_supervised.AutoEncoder_keras import AutoEncoderKeras
-from semi_supervised.AutoEncoder_torch import AutoEncoder
-from semi_supervised.AutoEncoder_chain import AutoEncoderChain
+from supervised.nn import SimpleNN
+from supervised.nn_torch import ModelNNTorch
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.metrics import f1_score, precision_score, recall_score, accuracy_score
-from sklearn.metrics import roc_auc_score, auc, precision_recall_curve
-from semi_supervised.ladder_net import get_ladder_network_fc
-
-from keras.utils import to_categorical
-
+from sklearn import tree, svm
+# from sklearn.externals import joblib
 
 def parse_arguments(argv):
     parser = argparse.ArgumentParser()
@@ -70,63 +66,35 @@ def get_label_n(predicted_score, contam):
     predicted_label = (predicted_score > threshold).astype('int')
     return predicted_label
 
-def exec_autoencoder_keras(train_labeled_feature, train_label, train_raw_label, train_unlabeled_feature,
+def exec_simplenn_keras(train_labeled_feature, train_label, train_raw_label,
                      test_feature, test_label, test_raw_label, contam):
-    autoencoder = AutoEncoderKeras(train_labeled_feature.shape[-1])
-    autoencoder.train_model(train_labeled_feature, train_unlabeled_feature, train_label,
+    simpleNN = SimpleNN(train_labeled_feature.shape[-1])
+    simpleNN.train_model(train_labeled_feature, train_label,
                             test_feature, test_label)
-    predicted_label, predicted_score = autoencoder.evaluate_model(test_feature)
-    roc=roc_auc_score(test_label, predicted_score)
-    print("roc= %.6lf" %(roc))
-    # predicted_label = get_label_n(predicted_score, contam)
+    predicted_label = simpleNN.evaluate_model(test_feature)
     precision, recall, f1_score, accuracy = eval_data(test_label, predicted_label, test_raw_label)
     print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf\naccuracy = %.6lf"
          %(precision, recall, f1_score, accuracy))
 
-def exec_autoencoder_torch(train_labeled_feature, train_label, train_raw_label, train_unlabeled_feature,
+def exec_simplenn_torch(train_labeled_feature, train_label, train_raw_label,
                      test_feature, test_label, test_raw_label, contam):
-    autoencoder = AutoEncoder(train_labeled_feature.shape[-1])
-    autoencoder.train_model(train_labeled_feature, train_unlabeled_feature, train_label,
+    simpleNN = ModelNNTorch(train_labeled_feature.shape[-1])
+    simpleNN.train_model(train_labeled_feature, train_label,
                             test_feature, test_label)
-    predicted_label, predicted_score, classify_score = autoencoder.evaluate_model(test_feature, test_label)
-    roc=roc_auc_score(test_label, predicted_score)
-    print("roc= %.6lf" %(roc))
-    predicted_score = StandardScaler().fit_transform(predicted_score.reshape(-1, 1)).reshape(-1)
-    classify_score = StandardScaler().fit_transform(classify_score.reshape(-1, 1)).reshape(-1)
-    predicted_score = predicted_score + classify_score
-    roc=roc_auc_score(test_label, predicted_score)
-    print("roc_new= %.6lf" %(roc))
+    predicted_label = simpleNN.evaluate_model(test_feature, test_label)
     precision, recall, f1_score, accuracy = eval_data(test_label, predicted_label, test_raw_label)
     print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf\naccuracy = %.6lf"
          %(precision, recall, f1_score, accuracy))
 
-def exec_autoencoder_chain(train_labeled_feature, train_label, train_raw_label, train_unlabeled_feature,
+def exec_svm(train_labeled_feature, train_label, train_raw_label,
                      test_feature, test_label, test_raw_label, contam):
-    autoencoder = AutoEncoderChain(train_labeled_feature.shape[-1])
-    autoencoder.train_model(train_labeled_feature, train_unlabeled_feature, train_label,
-                            test_feature, test_label)
-    predicted_label, predicted_score = autoencoder.evaluate_model(test_feature, test_label)
+    clf = svm.LinearSVC(random_state=1314)
+    clf.fit(train_labeled_feature,train_label)
+    # joblib.dump(clf, 'IDS_classifier.joblib')
+    predicted_label = clf.predict(test_feature)
     precision, recall, f1_score, accuracy = eval_data(test_label, predicted_label, test_raw_label)
     print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf\naccuracy = %.6lf"
          %(precision, recall, f1_score, accuracy))
-
-def exec_ladder_net(train_labeled_feature, train_label, train_raw_label, train_unlabeled_feature,
-                     test_feature, test_label, test_raw_label, contam):
-    n_rep = train_unlabeled_feature.shape[0] // train_labeled_feature.shape[0]
-    train_labeled_feature = np.concatenate([train_labeled_feature]*n_rep)
-    train_label = to_categorical(np.concatenate([train_label]*n_rep))
-    model = get_ladder_network_fc(layer_sizes=[train_labeled_feature.shape[-1], 50, 25, 10, 2])
-    for _ in range(10):
-        model.fit([train_labeled_feature, train_unlabeled_feature], train_label, epochs=1)
-        predicted_label = model.test_model.predict(test_feature, batch_size=100)
-        print("Test accuracy : %f" % accuracy_score(test_label, predicted_label.argmax(-1)))
-    # roc=roc_auc_score(test_label, predicted_score)
-    # print("roc= %.6lf" %(roc))
-    # predicted_label = get_label_n(predicted_score, contam)
-    precision, recall, f1_score, accuracy = eval_data(test_label, predicted_label.argmax(-1), test_raw_label)
-    print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf\naccuracy = %.6lf"
-         %(precision, recall, f1_score, accuracy))
-
 
 def main(args):
     dataset = read_data(args.inputpath)
@@ -138,18 +106,16 @@ def main(args):
     train_labeled_feature, train_label, train_raw_label = split_dataset_vertical(train_labeled_data)
     train_unlabeled_feature, _, _ = split_dataset_vertical(train_unlabeled_data)
     test_feature, test_label, test_raw_label = split_dataset_vertical(test_data)
-    train_labeled_feature, scalar = scale_data(train_labeled_feature)
-    train_unlabeled_feature, _ = scale_data(train_unlabeled_feature, scalar)
+    train_unlabeled_feature, scalar = scale_data(train_unlabeled_feature)
+    train_labeled_feature, _ = scale_data(train_labeled_feature, scalar)
     test_feature, _ = scale_data(test_feature, scalar)
     print("Preprocessing Data done......")
-    # exec_autoencoder_keras(train_labeled_feature, train_label, train_raw_label, train_unlabeled_feature,
+    # exec_svm(train_labeled_feature, train_label, train_raw_label,
     #                  test_feature, test_label, test_raw_label, args.contam)
-    exec_autoencoder_torch(train_labeled_feature, train_label, train_raw_label, train_unlabeled_feature,
+    # exec_simplenn_keras(train_labeled_feature, train_label, train_raw_label,
+    #                  test_feature, test_label, test_raw_label, args.contam)
+    exec_simplenn_torch(train_labeled_feature, train_label, train_raw_label,
                      test_feature, test_label, test_raw_label, args.contam)
-    # exec_autoencoder_chain(train_labeled_feature, train_label, train_raw_label, train_unlabeled_feature,
-    #                  test_feature, test_label, test_raw_label, args.contam)
-    # exec_ladder_net(train_labeled_feature, train_label, train_raw_label, train_unlabeled_feature,
-    #                  test_feature, test_label, test_raw_label, args.contam)
 
 
 if __name__ == '__main__':

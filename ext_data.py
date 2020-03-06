@@ -4,12 +4,14 @@ from sklearn.model_selection import train_test_split
 
 pd.set_option('mode.use_inf_as_na', True) # convert inf to nan
 csvNames = ['Monday-WorkingHours.pcap_ISCX.csv', 'Tuesday-WorkingHours.pcap_ISCX.csv', 'Wednesday-WorkingHours.pcap_ISCX.csv', 
-            'Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv', 'Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv',
+            'Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX-copy.csv', 'Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv',
             'Friday-WorkingHours-Morning.pcap_ISCX.csv', 'Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv',
             'Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv']
 isMerged = [1, 1, 1, 1, 1, 1, 1, 1]
-absolute_path = "/home/wyx/MachineLearningCSV/MachineLearningCVE/"
-output_path = "cicids2017_sample_0.5_500000.csv"
+# absolute_path = "/home/wyx/MachineLearningCSV/MachineLearningCVE/"
+absolute_path = "../data/IDS2017/GeneratedLabelledFlows/TrafficLabelling/"
+output_path = "cicids2017_all_data.csv"
+output_path = "cicids2017_sample_0.01_500000.csv"
 labels = {}
 
 def parse_arguments(argv):
@@ -69,7 +71,7 @@ def merge_all_file():
             else:
                df.to_csv(output_path, index=False, header=False, mode='a+')
 
-def sample_all_file(neg_samples=250000, pos_samples=250000):
+def sample_all_file(neg_samples=495000, pos_samples=5000):
     flag = True
     for i in range(0, len(csvNames)):
         if isMerged[i]:

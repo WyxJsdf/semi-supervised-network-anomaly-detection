@@ -12,11 +12,11 @@ from unsupervised.AutoEncoder_keras import AutoEncoderKeras
 
 from numpy import percentile
 from sklearn.utils import shuffle
-from sklearn.preprocessing import MinMaxScaler, Normalizer
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.metrics import f1_score, precision_score, recall_score
 from sklearn.metrics import roc_auc_score, auc, precision_recall_curve
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "6"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
 def parse_arguments(argv):
@@ -36,13 +36,15 @@ def split_dataset_vertical(dataset):
     raw_label = np.array(dataset[:, -1])
     return data, label, raw_label
 
-def scale_data(data):
-    data = MinMaxScaler(feature_range=(0, 1)).fit_transform(data)
-    # data = Normalizer().fit_transform(data)
-    return data
+def scale_data(data, scalar=None):
+    # data = MinMaxScaler(feature_range=(0, 1)).fit_transform(data)
+    if (scalar == None):
+        scalar = MinMaxScaler().fit(data)
+    data = scalar.transform(data)
+    return data, scalar
     
 def shuffle_data(data):
-    data = shuffle(data)
+    data = shuffle(data, random_state=1310)
     return data
 
 def read_data(path):
@@ -73,7 +75,7 @@ def get_label_n(predicted_score, contam):
     predicted_label = (predicted_score > threshold).astype('int')
     return predicted_label
 
-def exec_isolate_forest(train_feature, train_label, train_raw_label, test_feature, test_label, test_raw_label):
+def exec_isolate_forest(train_feature, train_label, train_raw_label, test_feature, test_label, test_raw_label, contam):
     isolate_forest = IsolationForest(contamination=contam, max_samples='auto', n_jobs=2)
     isolate_forest.train_model(train_feature)
     predicted_label = isolate_forest.evaluate_model(test_feature)
@@ -124,12 +126,12 @@ def main(args):
     dataset = read_data(args.inputpath)
     print("Reading Data done......")
 
-    # dataset = shuffle(dataset)
-    train_data, test_data = split_dataset_horizontal(dataset, 0.4)
+    dataset = shuffle_data(dataset)
+    train_data, test_data = split_dataset_horizontal(dataset, 0.6)
     train_feature, train_label, train_raw_label = split_dataset_vertical(train_data)
     test_feature, test_label, test_raw_label = split_dataset_vertical(test_data)
-    train_feature = scale_data(train_feature)
-    test_feature = scale_data(test_feature)
+    train_feature, scalar = scale_data(train_feature)
+    test_feature, _ = scale_data(test_feature, scalar)
     print("Preprocessing Data done......")
 
     # exec_isolate_forest(train_feature, train_label, train_raw_label, test_feature, test_label, test_raw_label, args.contam)

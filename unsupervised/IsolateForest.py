@@ -18,3 +18,10 @@ class IsolationForest(object):
         maxVal = {-1:1, 1:0}
         predicted_label[:] = [maxVal[item] for item in predicted_label[:]]
         return predicted_label
+
+    def invert_order(self, scores):
+        return (-scores.ravel())
+
+    def evaluate_model_score(self, X):
+        predicted_score = self._model.score_samples(X)
+        return self.invert_order(predicted_score)
