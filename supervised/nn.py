@@ -6,7 +6,6 @@ from keras.layers import Dense, Dropout
 from keras import Input, metrics, optimizers
 from keras.utils import plot_model, to_categorical
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 class SimpleNN(object):
 
     def _build_model(self):

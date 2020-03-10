@@ -11,7 +11,7 @@ from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 from torch.autograd import Variable
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+#os.environ["CUDA_VISIBLE_DEVICES"] = "6"
 # use_cuda = torch.cuda.is_available()
 # device = torch.device("cuda:6" if use_cuda else "cpu")
 # cudnn.benchmark = True
@@ -21,7 +21,7 @@ def get_device():
     else:
         device = 'cpu'
     print(device)
-    return 'cpu'
+#    return 'cpu'
     return device
 
 class FocalLoss(nn.Module):
@@ -55,6 +55,7 @@ class FocalLoss(nn.Module):
         self.gamma = gamma
         self.class_num = class_num
         self.size_average = size_average
+        self._device = get_device()
 
     def forward(self, inputs, targets):
         N = inputs.size(0)
@@ -68,9 +69,7 @@ class FocalLoss(nn.Module):
         #print(class_mask)
 
 
-        if inputs.is_cuda and not self.alpha.is_cuda:
-            self.alpha = self.alpha.cuda()
-        alpha = self.alpha[ids.data.view(-1)]
+        alpha = self.alpha[ids.data.view(-1)].to(self._device)
 
         probs = (P*class_mask).sum(1).view(-1,1)
 
@@ -122,15 +121,15 @@ class ModelAutoEncoder(nn.Module):
 class AutoEncoder():
     def __init__(self, num_features):
         self._model = ModelAutoEncoder(num_features).double()
+        self._device = get_device()
         self._criterion = nn.MSELoss()
         # self._criterion_classify = nn.CrossEntropyLoss()
         self._criterion_classify = FocalLoss()
         self._optimizer = torch.optim.Adam(self._model.parameters(), lr=0.001)
         self._log_interval = 100
-        self._device = get_device()
         self._model = self._model.to(self._device)
 
-    def train_model(self, feature_labeled, feature_unlabeled, label, test_feature, test_label, epoch=10, batch_size=64):
+    def train_model(self, feature_labeled, feature_unlabeled, label, test_feature, test_label, epoch=20, batch_size=64):
         train_data_labeled = Data.TensorDataset(torch.from_numpy(feature_labeled), torch.from_numpy(label))
         train_data_unlabeled = Data.TensorDataset(torch.from_numpy(feature_unlabeled), torch.from_numpy(feature_unlabeled))
         train_loader_labeled = Data.DataLoader(dataset=train_data_labeled, batch_size=batch_size, shuffle=True)
@@ -140,21 +139,21 @@ class AutoEncoder():
         iter_unlabeled = iter(train_loader_unlabeled)
         self._model.train()
         while epoch_id < epoch:
-            # self._model.set_supervised_flag(True)
-            # try:
-            #     train_batch, train_label = next(iter_labeled)
-            # except StopIteration:
-            #     iter_labeled = iter(train_loader_labeled)
-            #     train_batch, train_label = next(iter_labeled)
+            self._model.set_supervised_flag(True)
+            try:
+                train_batch, train_label = next(iter_labeled)
+            except StopIteration:
+                iter_labeled = iter(train_loader_labeled)
+                train_batch, train_label = next(iter_labeled)
 
-            # train_batch = train_batch.to(self._device)
-            # train_label = train_label.to(self._device)
-            # decoded = self._model(train_batch)
-            # loss = self._criterion_classify(decoded, train_label.long())
-            # self._optimizer.zero_grad()
-            # loss.backward()
-            # train_loss += loss.data.cpu().numpy()
-            # self._optimizer.step()
+            train_batch = train_batch.to(self._device)
+            train_label = train_label.to(self._device)
+            decoded = self._model(train_batch)
+            loss = self._criterion_classify(decoded, train_label.long())
+            self._optimizer.zero_grad()
+            loss.backward()
+            train_loss += loss.data.cpu().numpy()
+            self._optimizer.step()
             # if (step + 1) % self._log_interval == 0:
             #     print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.8f}'.format(
             #         epoch_id, (step + 1)* len(train_batch), len(train_loader_labeled.dataset),

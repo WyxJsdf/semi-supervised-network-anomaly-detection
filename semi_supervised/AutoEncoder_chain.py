@@ -8,10 +8,6 @@ import torch.utils.data as Data
 from sklearn.metrics import accuracy_score
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-# use_cuda = torch.cuda.is_available()
-# device = torch.device("cuda:6" if use_cuda else "cpu")
-# cudnn.benchmark = True
 def get_device():
     if torch.cuda.is_available():
         device = 'cuda:0'
