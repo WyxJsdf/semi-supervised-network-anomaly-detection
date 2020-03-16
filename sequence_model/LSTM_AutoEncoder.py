@@ -1,0 +1,238 @@
+import os
+import numpy as np
+import pandas as pd
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.utils.data as Data
+from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
+from sequence_model.rae import Encoder as RAEEncoder
+from sequence_model.rae import Decoder as RAEDecoder
+
+
+def get_device():
+    if torch.cuda.is_available():
+        device = 'cuda:2'
+    else:
+        device = 'cpu'
+    print(device)
+    return device
+
+class Config(object):
+  def __init__(self, embedding_size, window_size):
+    self.device = get_device()
+    self.labels = [1, 0]
+    # training parameters
+    self.num_layers = 2
+    self.batch_size = 64
+    self.lr = 0.001
+    self.save_path = "result"
+    self.init()
+
+    # model parameters
+    self.hidden_size = 64
+    self.embedding_size = embedding_size
+    self.num_classes = 2
+    self.seq_length = window_size
+
+  def init(self):
+    if not os.path.exists(self.save_path):
+      os.mkdir(self.save_path)
+
+class Encoder(nn.Module):
+    def __init__(self):
+        pass
+    def forward(self, input_data):
+        pass
+
+class Decoder(nn.Module):
+    def __init__(self):
+        pass
+    def forward(self, input_data):
+        pass
+
+class LSTMModel(nn.Module):
+    def __init__(self, config):
+        super(LSTMModel, self).__init__()
+        # self.embedding = nn.Embedding(config.vocab_size, config.embedding_size)
+        self.config = config
+
+        self.encoder = RAEEncoder(config.embedding_size, config.hidden_size)
+        self.decoder = RAEDecoder(config.device, config.hidden_size, config.embedding_size)
+
+        self.classifier = nn.Linear(config.hidden_size, config.num_classes)
+        self.supervised = True
+
+    def last_timestep(self, unpacked, lengths):
+        # Index of the last output for each sequence.
+        idx = (lengths - 1).view(-1, 1).expand(unpacked.size(0),
+                                               unpacked.size(2)).unsqueeze(1)
+        return unpacked.gather(1, idx).squeeze()
+
+    def forward(self, input_data, seq_lengths):
+        """
+        :param input_data: [batch_size, seq_length]
+        :return:
+        """
+        sorted_seq_lengths, indices = torch.sort(seq_lengths, descending=True)
+        _, desorted_indices = torch.sort(indices, descending=False)
+        packed_input = nn.utils.rnn.pack_padded_sequence(input_data[indices],
+                                                         sorted_seq_lengths,
+                                                         batch_first=True)
+        classify_out, output = self.encoder(packed_input)
+        if self.supervised:
+            # output, _ = nn.utils.rnn.pad_packed_sequence(classify_out, batch_first=True)
+            output = output[desorted_indices]
+            # output = self.last_timestep(output, seq_lengths)
+            return self.classifier(output)
+        output = output.repeat(self.config.seq_length, 1)
+        output = output.reshape(-1, self.config.seq_length, self.config.hidden_size)
+        packed_output = nn.utils.rnn.pack_padded_sequence(output,
+                                                          sorted_seq_lengths,
+                                                          batch_first=True)
+        output = self.decoder(packed_output)
+        output = output[desorted_indices]
+        if output.shape[1] < self.config.seq_length:
+            output = F.pad(output, (0, 0, 0, self.config.seq_length - output.shape[1]))
+        # output = self.linear(output)
+        # output = self.softmax(output)
+        return output
+
+    def set_supervised_flag(self,supervised):
+        self.supervised = supervised
+
+
+class LSTMAutoEncoder():
+    def __init__(self, embedding_size, window_size):
+        self._config = Config(embedding_size, window_size)
+        self._device = get_device()
+        # self._model = TextRnn(self._config).double()
+        self._model = LSTMModel(self._config).double()
+        self._criterion = nn.MSELoss(size_average=True)
+        self._criterion_classify = nn.CrossEntropyLoss()
+
+        self._optimizer = torch.optim.Adam(self._model.parameters(), lr=self._config.lr)
+        self._log_interval = 100
+        self._model = self._model.to(self._device)
+
+
+    def train_model(self, train_labeled_data, train_unlabeled_data, validation_data, epoch=20, batch_size=64):
+        # feature_labeled = feature_labeled.trans
+        feature_unlabeled, seq_length_unlabeled = train_unlabeled_data
+        feature_labeled, label, seq_length_labeled = train_labeled_data
+        print(feature_unlabeled.shape)
+        train_dataset_labeled = Data.TensorDataset(torch.from_numpy(feature_labeled),
+                                                   torch.from_numpy(label),
+                                                   torch.from_numpy(seq_length_labeled))
+        train_dataset_unlabeled = Data.TensorDataset(torch.from_numpy(feature_unlabeled),
+                                                     torch.from_numpy(seq_length_unlabeled))
+        train_loader_labeled = Data.DataLoader(dataset=train_dataset_labeled, batch_size=64, shuffle=True)
+        train_loader_unlabeled = Data.DataLoader(dataset=train_dataset_unlabeled, batch_size=64, shuffle=True)
+        train_loss = 0
+        epoch_id = 0; step = 0
+        iter_unlabeled = iter(train_loader_unlabeled)
+        iter_labeled = iter(train_loader_labeled)
+        self._model.train()
+        while epoch_id < epoch:
+            self._model.set_supervised_flag(True)
+            try:
+                train_batch, train_label, train_seq_length = next(iter_labeled)
+            except StopIteration:
+                iter_labeled = iter(train_loader_labeled)
+
+                # epoch_id += 1
+                # step = 0; train_loss = 0
+                # val_label, val_score, _ = self.evaluate_model(validation_data)
+                # self._model.train()
+                # roc=roc_auc_score(validation_data[1], val_score)
+                # print("roc auc= %.6lf" %(roc))
+                # accuracy = accuracy_score(validation_data[1], val_label)
+                # f1 = f1_score(validation_data[1], val_label, average='binary', pos_label=1)
+                # print('Validation Data Accuray = %.6lf' %(accuracy))
+                # print('Validation Data F1 Score = %.6lf' %(f1))
+
+                train_batch, train_label, train_seq_length = next(iter_labeled)
+
+            train_batch = train_batch.to(self._device)
+            train_label = train_label.to(self._device)
+            decoded = self._model(train_batch, train_seq_length)
+            loss = self._criterion_classify(decoded, train_label.long())
+            self._optimizer.zero_grad()
+            loss.backward()
+            train_loss += loss.data.cpu().numpy()
+            self._optimizer.step()
+            
+            try:
+                train_batch, train_seq_length = next(iter_unlabeled)
+            except StopIteration:
+                iter_unlabeled = iter(train_loader_unlabeled)
+                epoch_id += 1
+                step = 0; train_loss = 0
+                val_label, val_score, _ = self.evaluate_model(validation_data)
+                self._model.train()
+                roc=roc_auc_score(validation_data[1], val_score)
+                print("roc auc= %.6lf" %(roc))
+                accuracy = accuracy_score(validation_data[1], val_label)
+                f1 = f1_score(validation_data[1], val_label, average='binary', pos_label=1)
+                print('Validation Data Accuray = %.6lf' %(accuracy))
+                print('Validation Data F1 Score = %.6lf' %(f1))
+
+                train_batch, train_seq_length = next(iter_unlabeled)
+
+            self._model.set_supervised_flag(False)
+            train_batch = train_batch.to(self._device)
+            output = self._model(train_batch, train_seq_length)
+            loss = self._criterion(output, train_batch)
+            self._optimizer.zero_grad()
+            loss.backward()
+            train_loss += loss.data.cpu().numpy()
+            self._optimizer.step()
+
+            if (step + 1)% self._log_interval == 0:
+                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.8f}'.format(
+                    epoch_id, (step + 1)* len(train_batch), len(train_loader_unlabeled.dataset),
+                    100. * (step + 1) / len(train_loader_unlabeled), train_loss / self._log_interval))
+                train_loss = 0
+                # torch.save(model.state_dict(), os.path.join(config.save_path, "model.ckpt"))
+            step += 1
+
+
+    def get_distance(self, X, Y, seq_length):
+        euclidean_sq = np.square(Y - X)
+        return np.sum(np.sqrt(np.sum(euclidean_sq, axis=2)), axis=1).ravel() / (seq_length.astype(np.double))
+
+    def evaluate_model(self, test_data):
+        feature, label, seq_length = test_data
+        self._model.eval()
+        test_dataset = Data.TensorDataset(torch.from_numpy(feature),
+                                       torch.from_numpy(seq_length))
+        test_loader = Data.DataLoader(dataset=test_dataset, batch_size=64, shuffle=False)
+        output_feature = []
+        output_label = []; output_score = []
+        test_loss = 0
+        for step, test_data in enumerate(test_loader):
+            test_batch, test_seq_length = test_data
+            test_batch = test_batch.to(self._device)
+
+            self._model.set_supervised_flag(False)
+            output = self._model(test_batch, test_seq_length)
+            output_feature.append(output.data.cpu().numpy())
+            test_loss += self._criterion(output, test_batch).data.cpu().numpy()
+
+            self._model.set_supervised_flag(True)
+            output = self._model(test_batch, test_seq_length)
+            output = F.softmax(output, dim=1)
+            _, predicted = torch.max(output.data, 1)
+            score = output.data[:, 1]
+            h = predicted.cpu().numpy()
+            output_label.append(h)
+            output_score.append(score.cpu().numpy())
+
+
+        test_loss /= len(test_loader)                                           # loss function already averages over batch size
+        print('\nTesting set: Average loss: {:.4f}\n'.format(
+        test_loss))
+        predicted_score = np.concatenate(output_feature, axis=0)
+        predicted_label = np.concatenate(output_label, axis=0)
+        classify_score = np.concatenate(output_score, axis=0)
+        return predicted_label, self.get_distance(feature, predicted_score, seq_length), classify_score

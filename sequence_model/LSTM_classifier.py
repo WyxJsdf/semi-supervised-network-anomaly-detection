@@ -5,30 +5,29 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.data as Data
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, f1_score
 
 
 def get_device():
     if torch.cuda.is_available():
-        device = 'cuda:0'
+        device = 'cuda:2'
     else:
         device = 'cpu'
     print(device)
-    return 'cpu'
     return device
 
 class Config(object):
   def __init__(self, embedding_size):
     self.device = get_device()
     self.labels = [1, 0]
-    # 训练参数
-    self.num_layers = 3
+    # training parameters
+    self.num_layers = 2
     self.batch_size = 64
     self.lr = 0.001
     self.save_path = "result"
     self.init()
 
-    # 模型参数
+    # model parameters
     self.hidden_size = 128
     self.embedding_size = embedding_size
     self.num_classes = 2
@@ -41,6 +40,7 @@ class Config(object):
 class TextRnn(nn.Module):
   def __init__(self, config):
     super(TextRnn, self).__init__()
+    self.config=config
     # self.embedding = nn.Embedding(config.vocab_size, config.embedding_size)
     self.lstm      = nn.LSTM(
       input_size = config.embedding_size,
@@ -48,29 +48,42 @@ class TextRnn(nn.Module):
       num_layers = config.num_layers,
       bias = True,
       batch_first = True,
-      dropout = 0.0,
-      bidirectional = True
+      dropout = 0.1,
+      bidirectional = False
     )
     self.linear    = nn.Linear(
-      in_features = config.hidden_size * 2,
+      in_features = config.hidden_size,
       out_features = config.num_classes
     )
     self.softmax   = nn.Softmax()
 
-  def forward(self, input_data):
+  def last_timestep(self, unpacked, lengths):
+        # Index of the last output for each sequence.
+    idx = (lengths - 1).view(-1, 1).expand(unpacked.size(0),
+                                            unpacked.size(2)).unsqueeze(1)
+    return unpacked.gather(1, idx).squeeze()
+
+  def forward(self, input_data, seq_lengths):
     """
     :param input_data: [batch_size, seq_length]
     :return:
     """
-    # [batch_size, seq_length, embedding_size]
-    # output = self.embedding(input_data)
-    # output [batch_size, seq_length, 2*hidden_size]
-    output, _ = self.lstm(input_data)
-    # [batch_size, 2*hidden_size]
-    output = output[:, -1, :].squeeze(dim=1)
-    # [batch_size, num_classes]
+    sorted_seq_lengths, indices = torch.sort(seq_lengths, descending=True)
+    _, desorted_indices = torch.sort(indices, descending=False)
+    packed_input = nn.utils.rnn.pack_padded_sequence(input_data[indices],
+                                                      sorted_seq_lengths,
+                                                      batch_first=True)
+
+    padded_output, (hn, cn) = self.lstm(packed_input)
+    output, _ = nn.utils.rnn.pad_packed_sequence(padded_output, batch_first=True)
+    output = output[desorted_indices]
+    output = self.last_timestep(output, seq_lengths)
+    # output, (hn, cn) = self.lstm(input_data)
+    # output = output[:, -1, :].squeeze(dim=1)
+
+    # hn = hn.reshape(-1, self.config.hidden_size)
+    # output = self.linear(hn[desorted_indices])
     output = self.linear(output)
-    # output = self.softmax(output)
     return output
 
 
@@ -84,52 +97,68 @@ class LSTMClassifier():
         self._device = get_device()
         self._model = self._model.to(self._device)
 
-    def train_model(self, feature_labeled, label, test_feature, test_label, epoch=10, batch_size=64):
+
+    def train_model(self, train_labeled_data, validation_data, epoch=10, batch_size=64):
         # feature_labeled = feature_labeled.trans
+        feature_labeled, label, seq_length = train_labeled_data
         print(feature_labeled.shape)
-        label = torch.from_numpy(label)
         train_data_labeled = Data.TensorDataset(torch.from_numpy(feature_labeled),
-                                             label)
+                                                torch.from_numpy(label),
+                                                torch.from_numpy(seq_length))
         train_loader = Data.DataLoader(dataset=train_data_labeled, batch_size=batch_size, shuffle=True)
         train_loss = 0
         for epoch_id in range(epoch):
-            for index, train_data in enumerate(train_loader):
-                train_batch, train_label = train_data
+            for step, train_data in enumerate(train_loader):
+                train_batch, train_label, train_seq_length = train_data
+                nn.utils.rnn.pack_padded_sequence
                 train_batch = train_batch.to(self._device)
                 train_label = train_label.to(self._device)
-                output = self._model(train_batch)
+                train_seq_length = train_seq_length.to(self._device)
+
+                output = self._model(train_batch, train_seq_length)
                 loss = self._criterion(output, train_label.long())
                 self._optimizer.zero_grad()
                 loss.backward()
                 train_loss += loss.data.cpu().numpy()
                 self._optimizer.step()
 
-                if index % self._log_interval == 0:
+                if (step + 1)% self._log_interval == 0:
                     predict = torch.argmax(output.data, dim=1)
                     train_acc = accuracy_score(train_label.data.cpu(), predict.cpu())
-                    print("train acc: {train_acc}; train loss: {loss}"
-                        .format(train_acc=train_acc, loss=train_loss / self._log_interval))
+                    print('Train Epoch: {} [{}/{} ({:.0f}%)]\ttrain acc: {:.8f}\tLoss: {:.8f}'.format(
+                        epoch_id, (step + 1)* len(train_batch), len(train_loader.dataset),
+                        100. * (step + 1) / len(train_loader), train_acc, train_loss / self._log_interval))
                     train_loss = 0
                 # torch.save(model.state_dict(), os.path.join(config.save_path, "model.ckpt"))
+            val_label = self.evaluate_model(validation_data)
+            self._model.train()
+            accuracy = accuracy_score(validation_data[1], val_label)
+            f1 = f1_score(validation_data[1], val_label, average='binary', pos_label=1)
+            print('Validation Data Accuray = %.6lf' %(accuracy))
+            print('Validation Data F1 Score = %.6lf' %(f1))
+
 
     def get_distance(self, X, Y):
         euclidean_sq = np.square(Y - X)
         return np.sqrt(np.sum(euclidean_sq, axis=1)).ravel()
 
-    def evaluate_model(self, feature, label):
+    def evaluate_model(self, test_data):
+        feature, label, seq_length = test_data
         self._model.eval()
-        test_data = Data.TensorDataset(torch.from_numpy(feature.reshape(feature.shape[1], -1, self._config.embedding_size)),
-                                             torch.from_numpy(label))
-        test_loader = Data.DataLoader(dataset=test_data, batch_size=batch_size, shuffle=False)
+        test_data = Data.TensorDataset(torch.from_numpy(feature),
+                                       torch.from_numpy(label),
+                                       torch.from_numpy(seq_length))
+        test_loader = Data.DataLoader(dataset=test_data, batch_size=64, shuffle=False)
         output_feature = []
         output_label = []
         test_loss = 0
         ss = 0
-        for test_batch, test_label in test_loader:
+        for test_batch, test_label, test_seq_length in test_loader:
             test_batch = test_batch.to(self._device)
             test_label = test_label.to(self._device)
+            test_seq_length = test_seq_length.to(self._device)
 
-            output = self._model(test_batch)
+            output = self._model(test_batch, test_seq_length)
             _, predicted = torch.max(output.data, 1)
             h = predicted.cpu().numpy()
             ss += sum(h)
