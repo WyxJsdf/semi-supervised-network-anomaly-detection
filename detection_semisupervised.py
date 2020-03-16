@@ -115,17 +115,20 @@ def exec_ladder_net(train_labeled_feature, train_label, train_raw_label, train_u
     n_rep = train_unlabeled_feature.shape[0] // train_labeled_feature.shape[0]
     train_labeled_feature = np.concatenate([train_labeled_feature]*n_rep)
     train_label = to_categorical(np.concatenate([train_label]*n_rep))
-    model = get_ladder_network_fc(layer_sizes=[train_labeled_feature.shape[-1], 50, 25, 10, 2])
-    for _ in range(10):
+    model = get_ladder_network_fc(layer_sizes=[train_labeled_feature.shape[-1], 100, 80, 50, 10, 2])
+    for _ in range(20):
         model.fit([train_labeled_feature, train_unlabeled_feature], train_label, epochs=1)
         predicted_label = model.test_model.predict(test_feature, batch_size=100)
-        print("Test accuracy : %f" % accuracy_score(test_label, predicted_label.argmax(-1)))
+        precision, recall, f1_score, accuracy = eval_data(test_label, predicted_label.argmax(-1), test_raw_label)
+        print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf\naccuracy = %.6lf"
+            %(precision, recall, f1_score, accuracy))
+        # print("Test accuracy : %f" % accuracy_score(test_label, predicted_label.argmax(-1)))
     # roc=roc_auc_score(test_label, predicted_score)
     # print("roc= %.6lf" %(roc))
     # predicted_label = get_label_n(predicted_score, contam)
-    precision, recall, f1_score, accuracy = eval_data(test_label, predicted_label.argmax(-1), test_raw_label)
-    print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf\naccuracy = %.6lf"
-         %(precision, recall, f1_score, accuracy))
+    # precision, recall, f1_score, accuracy = eval_data(test_label, predicted_label.argmax(-1), test_raw_label)
+    # print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf\naccuracy = %.6lf"
+    #      %(precision, recall, f1_score, accuracy))
 
 
 def main(args):
@@ -144,12 +147,12 @@ def main(args):
     print("Preprocessing Data done......")
     # exec_autoencoder_keras(train_labeled_feature, train_label, train_raw_label, train_unlabeled_feature,
     #                  test_feature, test_label, test_raw_label, args.contam)
-    exec_autoencoder_torch(train_labeled_feature, train_label, train_raw_label, train_unlabeled_feature,
-                     test_feature, test_label, test_raw_label, args.contam)
+    # exec_autoencoder_torch(train_labeled_feature, train_label, train_raw_label, train_unlabeled_feature,
+    #                  test_feature, test_label, test_raw_label, args.contam)
     # exec_autoencoder_chain(train_labeled_feature, train_label, train_raw_label, train_unlabeled_feature,
     #                  test_feature, test_label, test_raw_label, args.contam)
-    # exec_ladder_net(train_labeled_feature, train_label, train_raw_label, train_unlabeled_feature,
-    #                  test_feature, test_label, test_raw_label, args.contam)
+    exec_ladder_net(train_labeled_feature, train_label, train_raw_label, train_unlabeled_feature,
+                     test_feature, test_label, test_raw_label, args.contam)
 
 
 if __name__ == '__main__':

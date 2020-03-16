@@ -24,4 +24,6 @@ class IsolationForest(object):
 
     def evaluate_model_score(self, X):
         predicted_score = self._model.score_samples(X)
+        # predicted_score = self._model.decision_function(X)
+        # return predicted_score
         return self.invert_order(predicted_score)

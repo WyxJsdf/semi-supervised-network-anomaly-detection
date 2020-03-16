@@ -79,8 +79,8 @@ def add_noise( inputs , noise_std ):
 
 
 def get_ladder_network_fc(layer_sizes=[784, 1000, 500, 250, 250, 250, 10], 
-     noise_std=0.0001,
-     denoising_cost=[0.00010, 0.00010, 0.00010, 0.00010, 0.00010, 0.00010, 0.00010]):
+     noise_std=0.3,
+     denoising_cost=[1000.0, 10.0, 0.10, 0.10, 0.10, 0.10, 0.10]):
 
     L = len(layer_sizes) - 1  # number of layers
 
@@ -134,7 +134,7 @@ def get_ladder_network_fc(layer_sizes=[784, 1000, 500, 250, 250, 250, 10],
 
     tr_m = Model([inputs_l, inputs_u], y_c_l)
     tr_m.add_loss(u_cost)
-    tr_m.compile(keras.optimizers.Adam(lr=0.001 ), 'categorical_crossentropy', metrics=['accuracy'])
+    tr_m.compile(keras.optimizers.Adam(lr=0.02 ), 'categorical_crossentropy', metrics=['accuracy'])
 
     tr_m.metrics_names.append("den_loss")
     tr_m.metrics_tensors.append(u_cost)

@@ -82,6 +82,12 @@ def exec_isolate_forest(train_feature, train_label, train_raw_label, test_featur
     predicted_score = isolate_forest.evaluate_model_score(test_feature)
     predicted_label = get_label_n(predicted_score, contam)
 
+    roc=roc_auc_score(test_label, predicted_score)
+    print("roc auc= %.6lf" %(roc))
+    precision, recall, f1_score = eval_data(test_label, predicted_label, test_raw_label)
+    print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf" %(precision, recall, f1_score))
+
+    predicted_label = isolate_forest.evaluate_model(test_feature)
     precision, recall, f1_score = eval_data(test_label, predicted_label, test_raw_label)
     print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf" %(precision, recall, f1_score))
 
@@ -89,6 +95,14 @@ def exec_one_class_svm(train_feature, train_label, train_raw_label, test_feature
     print("now execute the model One Class SVM!")
     one_class_svm = OneClassSVM()
     one_class_svm.train_model(train_feature)
+    predicted_score = one_class_svm.evaluate_model_score(test_feature)
+    predicted_label = get_label_n(predicted_score, contam)
+
+    roc=roc_auc_score(test_label, predicted_score)
+    print("roc auc= %.6lf" %(roc))
+    precision, recall, f1_score = eval_data(test_label, predicted_label, test_raw_label)
+    print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf" %(precision, recall, f1_score))
+
     predicted_label = one_class_svm.evaluate_model(test_feature)
     precision, recall, f1_score = eval_data(test_label, predicted_label, test_raw_label)
     print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf" %(precision, recall, f1_score))
@@ -140,10 +154,10 @@ def main(args):
     test_feature, _ = scale_data(test_feature, scalar)
     print("Preprocessing Data done......")
 
-    exec_isolate_forest(train_feature, train_label, train_raw_label, test_feature, test_label, test_raw_label, args.contam)
+    # exec_isolate_forest(train_feature, train_label, train_raw_label, test_feature, test_label, test_raw_label, args.contam)
     # exec_local_outlier_factor(train_feature, train_label, train_raw_label, test_feature, test_label, test_raw_label, args.contam)
     exec_one_class_svm(train_feature, train_label, train_raw_label, test_feature, test_label, test_raw_label, args.contam)
-    exec_autoencoder(train_feature, train_label, train_raw_label, test_feature, test_label, test_raw_label, args.contam)
+    # exec_autoencoder(train_feature, train_label, train_raw_label, test_feature, test_label, test_raw_label, args.contam)
     # exec_autoencoder_keras(train_feature, train_label, train_raw_label, test_feature, test_label, test_raw_label, args.contam)
 
 if __name__ == '__main__':
