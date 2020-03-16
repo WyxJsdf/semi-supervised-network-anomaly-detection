@@ -17,7 +17,7 @@ from torch.autograd import Variable
 # cudnn.benchmark = True
 def get_device():
     if torch.cuda.is_available():
-        device = 'cuda:0'
+        device = 'cuda:1'
     else:
         device = 'cpu'
     print(device)
@@ -139,21 +139,21 @@ class AutoEncoder():
         iter_unlabeled = iter(train_loader_unlabeled)
         self._model.train()
         while epoch_id < epoch:
-            self._model.set_supervised_flag(True)
-            try:
-                train_batch, train_label = next(iter_labeled)
-            except StopIteration:
-                iter_labeled = iter(train_loader_labeled)
-                train_batch, train_label = next(iter_labeled)
+            # self._model.set_supervised_flag(True)
+            # try:
+            #     train_batch, train_label = next(iter_labeled)
+            # except StopIteration:
+            #     iter_labeled = iter(train_loader_labeled)
+            #     train_batch, train_label = next(iter_labeled)
 
-            train_batch = train_batch.to(self._device)
-            train_label = train_label.to(self._device)
-            decoded = self._model(train_batch)
-            loss = self._criterion_classify(decoded, train_label.long())
-            self._optimizer.zero_grad()
-            loss.backward()
-            train_loss += loss.data.cpu().numpy()
-            self._optimizer.step()
+            # train_batch = train_batch.to(self._device)
+            # train_label = train_label.to(self._device)
+            # decoded = self._model(train_batch)
+            # loss = self._criterion_classify(decoded, train_label.long())
+            # self._optimizer.zero_grad()
+            # loss.backward()
+            # train_loss += loss.data.cpu().numpy()
+            # self._optimizer.step()
             # if (step + 1) % self._log_interval == 0:
             #     print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.8f}'.format(
             #         epoch_id, (step + 1)* len(train_batch), len(train_loader_labeled.dataset),

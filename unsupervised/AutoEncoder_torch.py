@@ -4,11 +4,12 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import torch.utils.data as Data
+from sklearn.metrics import roc_auc_score
 
 
 def get_device():
     if torch.cuda.is_available():
-        device = 'cuda:0'
+        device = 'cuda:2'
     else:
         device = 'cpu'
     print(device)
@@ -57,7 +58,7 @@ class AutoEncoder():
         #     self._model = self._model.cuda()
         self._model = self._model.to(self._device)
 
-    def train_model(self, feature_unlabeled, epoch=30, batch_size=64):
+    def train_model(self, feature_unlabeled, test_feature, test_label, epoch=20, batch_size=64):
         train_data_unlabeled = Data.TensorDataset(torch.from_numpy(feature_unlabeled), torch.from_numpy(feature_unlabeled))
         train_loader_unlabeled = Data.DataLoader(dataset=train_data_unlabeled, batch_size=batch_size, shuffle=True)
         train_loss = 0
@@ -76,6 +77,10 @@ class AutoEncoder():
                         epoch_id, (step + 1)* len(train_batch), len(train_loader_unlabeled.dataset),
                         100. * (step + 1) / len(train_loader_unlabeled), train_loss / self._log_interval))
                     train_loss = 0
+            predicted_score = self.evaluate_model(test_feature)
+            self._model.train()
+            roc=roc_auc_score(test_label, predicted_score)
+            print("roc auc= %.6lf" %(roc))
 
     def get_distance(self, X, Y):
         euclidean_sq = np.square(Y - X)
