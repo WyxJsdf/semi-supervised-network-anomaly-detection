@@ -6,7 +6,7 @@ from sklearn.utils import shuffle
 from supervised.nn import SimpleNN
 from supervised.nn_torch import ModelNNTorch
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
-from sklearn.metrics import f1_score, precision_score, recall_score, accuracy_score
+from sklearn.metrics import f1_score, precision_score, recall_score, accuracy_score, roc_auc_score
 from sklearn import tree, svm
 # from sklearn.externals import joblib
 
@@ -38,7 +38,7 @@ def scale_data(data, scalar=None):
     return data, scalar
 
 def shuffle_data(data):
-    data = shuffle(data, random_state=1310)
+    data = shuffle(data, random_state=1312)
     return data
 
 def read_data(path):
@@ -80,11 +80,13 @@ def exec_simplenn_torch(train_labeled_feature, train_label, train_raw_label,
                      test_feature, test_label, test_raw_label, contam):
     simpleNN = ModelNNTorch(train_labeled_feature.shape[-1])
     simpleNN.train_model(train_labeled_feature, train_label,
-                            test_feature, test_label)
-    predicted_label = simpleNN.evaluate_model(test_feature, test_label)
+                            test_feature, test_label, epoch=30)
+    predicted_label, predicted_score = simpleNN.evaluate_model(test_feature, test_label)
     precision, recall, f1_score, accuracy = eval_data(test_label, predicted_label, test_raw_label)
     print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf\naccuracy = %.6lf"
          %(precision, recall, f1_score, accuracy))
+    roc=roc_auc_score(test_label, predicted_score)
+    print("roc= %.6lf" %(roc))
 
 def exec_svm(train_labeled_feature, train_label, train_raw_label,
                      test_feature, test_label, test_raw_label, contam):
@@ -119,4 +121,4 @@ def main(args):
 
 
 if __name__ == '__main__':
-	main(parse_arguments(sys.argv[1:]))
+    main(parse_arguments(sys.argv[1:]))

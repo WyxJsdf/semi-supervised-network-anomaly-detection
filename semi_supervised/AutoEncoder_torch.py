@@ -21,7 +21,7 @@ def get_device():
     else:
         device = 'cpu'
     print(device)
-#    return 'cpu'
+    # return 'cpu'
     return device
 
 class FocalLoss(nn.Module):
@@ -125,35 +125,35 @@ class AutoEncoder():
         self._criterion = nn.MSELoss()
         # self._criterion_classify = nn.CrossEntropyLoss()
         self._criterion_classify = FocalLoss()
-        self._optimizer = torch.optim.Adam(self._model.parameters(), lr=0.001)
+        self._optimizer = torch.optim.Adam(self._model.parameters(), lr=0.0005)
         self._log_interval = 100
         self._model = self._model.to(self._device)
 
-    def train_model(self, feature_labeled, feature_unlabeled, label, test_feature, test_label, epoch=20, batch_size=64):
-        train_data_labeled = Data.TensorDataset(torch.from_numpy(feature_labeled), torch.from_numpy(label))
-        train_data_unlabeled = Data.TensorDataset(torch.from_numpy(feature_unlabeled), torch.from_numpy(feature_unlabeled))
-        train_loader_labeled = Data.DataLoader(dataset=train_data_labeled, batch_size=batch_size, shuffle=True)
-        train_loader_unlabeled = Data.DataLoader(dataset=train_data_unlabeled, batch_size=batch_size, shuffle=True)
+    def train_model(self, train_labeled_data, feature_unlabeled, validate_data, epoch=10, batch_size=64):
+        train_dataset_labeled = Data.TensorDataset(torch.from_numpy(train_labeled_data[0]), torch.from_numpy(train_labeled_data[1]))
+        train_dataset_unlabeled = Data.TensorDataset(torch.from_numpy(feature_unlabeled))
+        train_loader_labeled = Data.DataLoader(dataset=train_dataset_labeled, batch_size=batch_size, shuffle=True)
+        train_loader_unlabeled = Data.DataLoader(dataset=train_dataset_unlabeled, batch_size=batch_size, shuffle=True)
         train_loss = 0; epoch_id = 0; step = 0
         iter_labeled = iter(train_loader_labeled)
         iter_unlabeled = iter(train_loader_unlabeled)
         self._model.train()
         while epoch_id < epoch:
-            # self._model.set_supervised_flag(True)
-            # try:
-            #     train_batch, train_label = next(iter_labeled)
-            # except StopIteration:
-            #     iter_labeled = iter(train_loader_labeled)
-            #     train_batch, train_label = next(iter_labeled)
+            self._model.set_supervised_flag(True)
+            try:
+                train_batch, train_label = next(iter_labeled)
+            except StopIteration:
+                iter_labeled = iter(train_loader_labeled)
+                train_batch, train_label = next(iter_labeled)
 
-            # train_batch = train_batch.to(self._device)
-            # train_label = train_label.to(self._device)
-            # decoded = self._model(train_batch)
-            # loss = self._criterion_classify(decoded, train_label.long())
-            # self._optimizer.zero_grad()
-            # loss.backward()
-            # train_loss += loss.data.cpu().numpy()
-            # self._optimizer.step()
+            train_batch = train_batch.to(self._device)
+            train_label = train_label.to(self._device)
+            decoded = self._model(train_batch)
+            loss = self._criterion_classify(decoded, train_label.long())
+            self._optimizer.zero_grad()
+            loss.backward()
+            train_loss += loss.data.cpu().numpy()
+            self._optimizer.step()
             # if (step + 1) % self._log_interval == 0:
             #     print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.8f}'.format(
             #         epoch_id, (step + 1)* len(train_batch), len(train_loader_labeled.dataset),
@@ -161,28 +161,33 @@ class AutoEncoder():
             #     train_loss = 0
 
             try:
-                train_batch, _ = next(iter_unlabeled)
+                train_batch = next(iter_unlabeled)[0]
             except StopIteration:
                 iter_unlabeled = iter(train_loader_unlabeled)
                 epoch_id += 1
                 step = 0
                 train_loss = 0
-                val_label, val_score, classify_score = self.evaluate_model(test_feature, test_label)
+                val_label, val_score, classify_score = self.evaluate_model(validate_data)
                 self._model.train()
-                roc=roc_auc_score(test_label, val_score)
+                roc=roc_auc_score(validate_data[1], val_score)
                 print("roc_autoencoder= %.6lf" %(roc))
-                roc=roc_auc_score(test_label, classify_score)
+                roc=roc_auc_score(validate_data[1], classify_score)
                 print("roc_classify= %.6lf" %(roc))
                 val_score = StandardScaler().fit_transform(val_score.reshape(-1, 1)).reshape(-1)
-                classify_score = StandardScaler().fit_transform(classify_score.reshape(-1, 1)).reshape(-1)
-                val_score = val_score + classify_score
-                roc=roc_auc_score(test_label, val_score)
+                # classify_score = StandardScaler().fit_transform(classify_score.reshape(-1, 1)).reshape(-1)
+                val_score_1 = val_score + classify_score * classify_score
+                roc=roc_auc_score(validate_data[1], val_score_1)
+                print("roc_ensemble_square= %.6lf" %(roc))
+
+                val_score_2 = val_score + classify_score
+                roc=roc_auc_score(validate_data[1], val_score_2)
                 print("roc_ensemble= %.6lf" %(roc))
-                accuracy = accuracy_score(test_label, val_label)
-                f1 = f1_score(test_label, val_label, average='binary', pos_label=1)
+
+                accuracy = accuracy_score(validate_data[1], val_label)
+                f1 = f1_score(validate_data[1], val_label, average='binary', pos_label=1)
                 # print('Validation Data Accuray = %.6lf' %(accuracy))
                 print('Validation Data F1 Score = %.6lf' %(f1))
-                train_batch, _ = next(iter_unlabeled)
+                train_batch = next(iter_unlabeled)[0]
             self._model.set_supervised_flag(False)
             train_batch = train_batch.to(self._device)
             decoded = self._model(train_batch)
@@ -204,10 +209,10 @@ class AutoEncoder():
         euclidean_sq = np.square(Y - X)
         return np.sqrt(np.sum(euclidean_sq, axis=1)).ravel()
 
-    def evaluate_model(self, feature, label):
+    def evaluate_model(self, test_data):
         self._model.eval()
-        test_data = Data.TensorDataset(torch.from_numpy(feature), torch.from_numpy(label))
-        test_loader = Data.DataLoader(dataset=test_data, batch_size=64, shuffle=False)
+        test_dataset = Data.TensorDataset(torch.from_numpy(test_data[0]), torch.from_numpy(test_data[1]))
+        test_loader = Data.DataLoader(dataset=test_dataset, batch_size=64, shuffle=False)
         output_feature = []
         output_label = []
         output_score = []
@@ -239,4 +244,4 @@ class AutoEncoder():
         predicted_score = np.concatenate(output_feature, axis=0)
         predicted_label = np.concatenate(output_label, axis=0)
         classify_score = np.concatenate(output_score, axis=0)
-        return predicted_label, self.get_distance(feature, predicted_score), classify_score
+        return predicted_label, self.get_distance(test_data[0], predicted_score), classify_score
