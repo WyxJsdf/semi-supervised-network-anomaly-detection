@@ -122,9 +122,10 @@ def get_label_n(predicted_score, contam):
     threshold = percentile(predicted_score, 100 * (1 - contam))
     predicted_label = (predicted_score > threshold).astype('int')
     return predicted_label
+
 def exec_lstm_classify(train_labeled_data, test_data, contam, cuda):
     lstmClassifier = LSTMClassifier(train_labeled_data[0].shape[2], cuda)
-    lstmClassifier.train_model(train_labeled_data, test_data, epoch=50)
+    lstmClassifier.train_model(train_labeled_data, test_data, epoch=500)
     predicted_label, classify_score = lstmClassifier.evaluate_model(test_data)
 
     roc=roc_auc_score(test_data[1], classify_score)

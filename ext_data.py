@@ -61,7 +61,7 @@ def sample_number_each_class(df, pos_samples, neg_samples):
     df_neg = df_neg.sample(n=neg_samples)
     for attack in selected_attack:
         df_class = df[df['RawLabel'] == attack]
-        df_class = df_class.sample(n=pos_samples/len(selected_attack))
+        df_class = df_class.sample(n=int(pos_samples/len(selected_attack)))
         df_neg = df_neg.append(df_class)
     return df_neg
 

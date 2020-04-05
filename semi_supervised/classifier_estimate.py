@@ -25,7 +25,6 @@ def get_device():
     else:
         device = 'cpu'
     print(device)
-    return 'cpu'
     return device
 
 def print_confidence_each_class(predicted_score, raw_label):
@@ -124,6 +123,8 @@ class ModelAutoEncoder(nn.Module):
             nn.ReLU(True),
             nn.Linear(50, num_features), nn.Tanh())
         self.classifier = nn.Sequential(
+            nn.Linear(10, 10),
+            nn.ReLU(True),
             nn.Linear(10, 2)
         )
         self.confidence = nn.Sequential(
@@ -163,7 +164,7 @@ class ConfidenceAutoEncoder():
         self._model = self._model.to(self._device)
 
         self.budget = budget
-        self.theta = 1
+        self.theta = 100
         print("now budget = " + str(budget))
         print("now theta = " + str(self.theta))
 
@@ -175,13 +176,13 @@ class ConfidenceAutoEncoder():
         onehot.scatter_(1, labels.view(-1, 1), 1)
         return onehot
 
-    def train_model(self, train_labeled_data, feature_unlabeled, validate_data, epoch=5, batch_size=64):
+    def train_model(self, train_labeled_data, feature_unlabeled, validate_data, epoch=5, batch_size=512):
         train_dataset_labeled = Data.TensorDataset(torch.from_numpy(train_labeled_data[0]), torch.from_numpy(train_labeled_data[1]))
         train_dataset_unlabeled = Data.TensorDataset(torch.from_numpy(feature_unlabeled))
         train_loader_labeled = Data.DataLoader(dataset=train_dataset_labeled, batch_size=batch_size, shuffle=True)
         train_loader_unlabeled = Data.DataLoader(dataset=train_dataset_unlabeled, batch_size=batch_size, shuffle=True)
         train_loss = 0; epoch_id = 0; step = 0
-        lmbda = 0.0001
+        lmbda = 0.01
         global max_score
         iter_labeled = iter(train_loader_labeled)
         iter_unlabeled = iter(train_loader_unlabeled)
@@ -269,6 +270,8 @@ class ConfidenceAutoEncoder():
 
                 # val_score_3 = classify_score * confidence_score + (1-classify_score) * (1-confidence_score)
                 val_score_3 = val_score + confidence_score * (classify_score-0.05)
+                # val_score_3 = (1 - confidence_score) * val_score + confidence_score * classify_score * 3
+                # val_score_3 = val_score - confidence_score *0.05 + classify_score
                 roc=roc_auc_score(validate_data[1], val_score_3)
                 print("roc_ensemble_simple= %.6lf" %(roc))
 
@@ -277,7 +280,7 @@ class ConfidenceAutoEncoder():
                 print("roc_ensemble_raw= %.6lf" %(roc))
 
                 # classify_score = StandardScaler().fit_transform(classify_score.reshape(-1, 1)).reshape(-1)
-                val_score_1 = val_score + classify_score * classify_score
+                val_score_1 = val_score + classify_score * classify_score * 2
                 roc=roc_auc_score(validate_data[1], val_score_1)
                 print("roc_ensemble_square= %.6lf" %(roc))
                 val_score_2 = val_score + 2*confidence_score * (classify_score * classify_score-0.05)

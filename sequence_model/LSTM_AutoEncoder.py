@@ -97,7 +97,7 @@ class Config(object):
     self.init()
 
     # model parameters
-    self.hidden_size = 64
+    self.hidden_size = 128
     self.embedding_size = embedding_size
     self.num_classes = 2
     self.seq_length = window_size
@@ -124,7 +124,7 @@ class LSTMModel(nn.Module):
         # self.embedding = nn.Embedding(config.vocab_size, config.embedding_size)
         self.config = config
 
-        self.encoder = RAEEncoder(config.embedding_size, config.hidden_size)
+        self.encoder = RAEEncoder(config.device, config.embedding_size, config.hidden_size)
         self.decoder = RAEDecoder(config.device, config.hidden_size, config.embedding_size)
 
         self.classifier = nn.Linear(config.hidden_size, config.num_classes)
@@ -186,7 +186,7 @@ class LSTMAutoEncoder():
         self._model = self._model.to(self._device)
 
 
-    def train_model(self, train_labeled_data, train_unlabeled_data, validation_data, epoch=3, batch_size=64):
+    def train_model(self, train_labeled_data, train_unlabeled_data, validation_data, epoch=30, batch_size=64):
         # feature_labeled = feature_labeled.trans
         feature_unlabeled, seq_length_unlabeled = train_unlabeled_data
         feature_labeled, label, seq_length_labeled = train_labeled_data
