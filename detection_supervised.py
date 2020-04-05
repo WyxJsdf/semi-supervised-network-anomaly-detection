@@ -10,6 +10,8 @@ from sklearn.metrics import f1_score, precision_score, recall_score, accuracy_sc
 from sklearn import tree, svm
 # from sklearn.externals import joblib
 
+FILTER_CLASS_NAME='DoS Hulk'
+
 def parse_arguments(argv):
     parser = argparse.ArgumentParser()
     parser.add_argument('inputpath', type=str, help='Path of the feature matrix to load')
@@ -36,6 +38,10 @@ def scale_data(data, scalar=None):
         scalar = MinMaxScaler().fit(data)
     data = scalar.transform(data)
     return data, scalar
+
+def clear_specific_class(data, class_name):
+    index = data[:, -1] != class_name
+    return (data[index])
 
 def shuffle_data(data):
     data = shuffle(data, random_state=1312)
@@ -80,7 +86,7 @@ def exec_simplenn_torch(train_labeled_feature, train_label, train_raw_label,
                      test_feature, test_label, test_raw_label, contam):
     simpleNN = ModelNNTorch(train_labeled_feature.shape[-1])
     simpleNN.train_model(train_labeled_feature, train_label,
-                            test_feature, test_label, epoch=30)
+                            test_feature, test_label, epoch=20)
     predicted_label, predicted_score = simpleNN.evaluate_model(test_feature, test_label)
     precision, recall, f1_score, accuracy = eval_data(test_label, predicted_label, test_raw_label)
     print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf\naccuracy = %.6lf"
@@ -104,6 +110,8 @@ def main(args):
 
     dataset = shuffle_data(dataset)
     train_data, test_data = split_dataset_horizontal(dataset, 0.6, True)
+    train_data = clear_specific_class(train_data, FILTER_CLASS_NAME)
+
     train_labeled_data, train_unlabeled_data = split_dataset_horizontal(train_data, 0.01, False)
     train_labeled_feature, train_label, train_raw_label = split_dataset_vertical(train_labeled_data)
     train_unlabeled_feature, _, _ = split_dataset_vertical(train_unlabeled_data)

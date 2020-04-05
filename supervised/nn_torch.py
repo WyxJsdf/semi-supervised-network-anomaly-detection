@@ -112,8 +112,8 @@ class ModelAutoEncoder(nn.Module):
 class ModelNNTorch():
     def __init__(self, num_features):
         self._model = ModelAutoEncoder(num_features).double()
-        # self._criterion_classify = nn.CrossEntropyLoss()
-        self._criterion_classify = FocalLoss()
+        self._criterion_classify = nn.CrossEntropyLoss()
+        # self._criterion_classify = FocalLoss()
 
         self._optimizer = torch.optim.Adam(self._model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-8)
         # self._criterion_classify = F.binary_cross_entropy()
@@ -135,14 +135,15 @@ class ModelNNTorch():
                 epoch_id += 1
                 step = 0
                 train_loss = 0
-                val_label, classify_score = self.evaluate_model(test_feature, test_label)
-                self._model.train()
-                accuracy = accuracy_score(test_label, val_label)
-                f1 = f1_score(test_label, val_label, average='binary', pos_label=1)
-                # print('Validation Data Accuray = %.6lf' %(accuracy))
-                print('Validation Data F1 Score = %.6lf' %(f1))
-                roc=roc_auc_score(test_label, classify_score)
-                print("roc_classify= %.6lf" %(roc))
+                if epoch_id % 20 != 0:
+                    val_label, classify_score = self.evaluate_model(test_feature, test_label)
+                    self._model.train()
+                    accuracy = accuracy_score(test_label, val_label)
+                    f1 = f1_score(test_label, val_label, average='binary', pos_label=1)
+                    # print('Validation Data Accuray = %.6lf' %(accuracy))
+                    print('Validation Data F1 Score = %.6lf' %(f1))
+                    roc=roc_auc_score(test_label, classify_score)
+                    print("roc_classify= %.6lf" %(roc))
                 iter_labeled = iter(train_loader_labeled)
                 train_batch, train_label = next(iter_labeled)
 

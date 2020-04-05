@@ -19,6 +19,7 @@ class Encoder(nn.Module):
             input_size=num_features,
             hidden_size=self.hidden_dim,
             num_layers=1,
+            bidirectional=False,
             batch_first=True
         )
         self.rnn2 = nn.LSTM(
@@ -46,6 +47,7 @@ class Decoder(nn.Module):
             input_size=input_dim,
             hidden_size=input_dim,
             num_layers=1,
+            bidirectional=False,
             batch_first=True
         )
         self.rnn2 = nn.LSTM(

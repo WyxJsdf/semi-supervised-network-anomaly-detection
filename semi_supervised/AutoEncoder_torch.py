@@ -21,7 +21,7 @@ def get_device():
     else:
         device = 'cpu'
     print(device)
-    # return 'cpu'
+    return 'cpu'
     return device
 
 class FocalLoss(nn.Module):
@@ -173,7 +173,7 @@ class AutoEncoder():
                 print("roc_autoencoder= %.6lf" %(roc))
                 roc=roc_auc_score(validate_data[1], classify_score)
                 print("roc_classify= %.6lf" %(roc))
-                val_score = StandardScaler().fit_transform(val_score.reshape(-1, 1)).reshape(-1)
+                val_score = MinMaxScaler().fit_transform(val_score.reshape(-1, 1)).reshape(-1)
                 # classify_score = StandardScaler().fit_transform(classify_score.reshape(-1, 1)).reshape(-1)
                 val_score_1 = val_score + classify_score * classify_score
                 roc=roc_auc_score(validate_data[1], val_score_1)

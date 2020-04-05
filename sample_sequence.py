@@ -3,7 +3,7 @@ import csv
 from sklearn.model_selection import train_test_split 
 
 absolute_path = "../data/IDS2017/all.seq"
-output_path = "cicids2017_seq_sample_0.01_500000.csv"
+output_path = "cicids2017_seq_sample_0.2_500000.csv"
 
 def parse_arguments(argv):
     parser = argparse.ArgumentParser()
@@ -12,7 +12,7 @@ def parse_arguments(argv):
         help='number of images in this folder.', default=300)
 
 
-def sample_all_file(path, neg_samples=495000, pos_samples=5000):
+def sample_all_file(path, neg_samples=400000, pos_samples=100000):
     with open (path, 'r') as f:
         reader = csv.reader(f, delimiter=' ')
         data_list = list(reader)
