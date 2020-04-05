@@ -15,9 +15,12 @@ from torch.autograd import Variable
 # use_cuda = torch.cuda.is_available()
 # device = torch.device("cuda:6" if use_cuda else "cpu")
 # cudnn.benchmark = True
+
+CUDA = 'cuda:4'
+
 def get_device():
     if torch.cuda.is_available():
-        device = 'cuda:1'
+        device = CUDA
     else:
         device = 'cpu'
     print(device)
@@ -118,7 +121,9 @@ class ModelAutoEncoder(nn.Module):
 
 
 class AutoEncoder():
-    def __init__(self, num_features):
+    def __init__(self, num_features, device):
+        global CUDA
+        CUDA=device
         self._model = ModelAutoEncoder(num_features).double()
         self._device = get_device()
         self._criterion = nn.MSELoss()
@@ -128,7 +133,7 @@ class AutoEncoder():
         self._log_interval = 100
         self._model = self._model.to(self._device)
 
-    def train_model(self, train_labeled_data, feature_unlabeled, validate_data, epoch=10, batch_size=512):
+    def train_model(self, train_labeled_data, feature_unlabeled, validate_data, epoch=10, batch_size=64):
         train_dataset_labeled = Data.TensorDataset(torch.from_numpy(train_labeled_data[0]), torch.from_numpy(train_labeled_data[1]))
         train_dataset_unlabeled = Data.TensorDataset(torch.from_numpy(feature_unlabeled))
         train_loader_labeled = Data.DataLoader(dataset=train_dataset_labeled, batch_size=batch_size, shuffle=True)

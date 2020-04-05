@@ -9,7 +9,7 @@ import torch.utils.data as Data
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 from torch.autograd import Variable
-
+import csv
 
 #os.environ["CUDA_VISIBLE_DEVICES"] = "6"
 # use_cuda = torch.cuda.is_available()
@@ -26,6 +26,17 @@ def get_device():
         device = 'cpu'
     print(device)
     return device
+
+
+def output_score(scores, name):
+    f = open(name,"w",newline='')
+    writer=csv.writer(f,dialect='excel')
+    for i in range(len(scores[0])):
+        p = []
+        for h in scores:
+            p.append(h[i])
+        writer.writerow(p)
+    f.close()
 
 def print_confidence_each_class(predicted_score, raw_label):
     sum_classes = {}
@@ -151,7 +162,7 @@ class ModelAutoEncoder(nn.Module):
 
 
 class ConfidenceAutoEncoder():
-    def __init__(self, num_features, cuda, budget=0.3):
+    def __init__(self, num_features, cuda, theta, save_name, budget=0.3):
         global CUDA
         CUDA=cuda
         self._model = ModelAutoEncoder(num_features).double()
@@ -159,12 +170,13 @@ class ConfidenceAutoEncoder():
         self._criterion = nn.MSELoss()
         # self._criterion_classify = nn.NLLLoss()
         self._criterion_classify = FocalLoss()
-        self._optimizer = torch.optim.Adam(self._model.parameters(), lr=0.0005)
+        self._optimizer = torch.optim.Adam(self._model.parameters(), lr=0.001)
         self._log_interval = 100
         self._model = self._model.to(self._device)
 
         self.budget = budget
-        self.theta = 100
+        self.theta = theta
+        self.save_name = save_name
         print("now budget = " + str(budget))
         print("now theta = " + str(self.theta))
 
@@ -176,7 +188,7 @@ class ConfidenceAutoEncoder():
         onehot.scatter_(1, labels.view(-1, 1), 1)
         return onehot
 
-    def train_model(self, train_labeled_data, feature_unlabeled, validate_data, epoch=5, batch_size=512):
+    def train_model(self, train_labeled_data, feature_unlabeled, validate_data, epoch=5, batch_size=256):
         train_dataset_labeled = Data.TensorDataset(torch.from_numpy(train_labeled_data[0]), torch.from_numpy(train_labeled_data[1]))
         train_dataset_unlabeled = Data.TensorDataset(torch.from_numpy(feature_unlabeled))
         train_loader_labeled = Data.DataLoader(dataset=train_dataset_labeled, batch_size=batch_size, shuffle=True)
@@ -289,7 +301,11 @@ class ConfidenceAutoEncoder():
                 print_confidence_each_class(confidence_score, validate_data[2])
                 if roc > max_score:
                     max_score = roc
+                    new_name = "{}_{:.4f}.csv".format(self.save_name, roc)
+                    conf_name = "{}_{:.4f}_conf.csv".format(self.save_name, roc)
                     torch.save(self._model.state_dict(), os.path.join("estimate_model.ckpt"))
+                    output_score((validate_data[1], val_score_2), new_name)
+                    output_score((classify_score, confidence_score, validate_data[2]), conf_name)
 
 
                 accuracy = accuracy_score(validate_data[1], val_label)

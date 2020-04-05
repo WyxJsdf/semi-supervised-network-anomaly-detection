@@ -110,10 +110,12 @@ class ModelAutoEncoder(nn.Module):
 
 
 class ModelNNTorch():
-    def __init__(self, num_features):
+    def __init__(self, num_features, focal):
         self._model = ModelAutoEncoder(num_features).double()
-        self._criterion_classify = nn.CrossEntropyLoss()
-        # self._criterion_classify = FocalLoss()
+        if focal:
+            self._criterion_classify = FocalLoss()
+        else:
+            self._criterion_classify = nn.CrossEntropyLoss()
 
         self._optimizer = torch.optim.Adam(self._model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-8)
         # self._criterion_classify = F.binary_cross_entropy()
@@ -122,9 +124,10 @@ class ModelNNTorch():
         self._device = get_device()
         self._model = self._model.to(self._device)
 
-    def train_model(self, feature_labeled, label, test_feature, test_label, epoch=20, batch_size=64):
-        train_data_labeled = Data.TensorDataset(torch.from_numpy(feature_labeled), torch.from_numpy(label))
-        train_loader_labeled = Data.DataLoader(dataset=train_data_labeled, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
+    def train_model(self, train_labeled_data, validate_data, epoch=20, batch_size=128):
+        train_dataset_labeled = Data.TensorDataset(torch.from_numpy(train_labeled_data[0]), torch.from_numpy(train_labeled_data[1]))
+        train_loader_labeled = Data.DataLoader(dataset=train_dataset_labeled, batch_size=batch_size, shuffle=True)
+
         train_loss = 0; epoch_id = 0; step = 0
         iter_labeled = iter(train_loader_labeled)
         self._model.train()
@@ -135,14 +138,14 @@ class ModelNNTorch():
                 epoch_id += 1
                 step = 0
                 train_loss = 0
-                if epoch_id % 20 != 0:
-                    val_label, classify_score = self.evaluate_model(test_feature, test_label)
+                if epoch_id % 20 == 0:
+                    val_label, classify_score = self.evaluate_model(validate_data)
                     self._model.train()
-                    accuracy = accuracy_score(test_label, val_label)
-                    f1 = f1_score(test_label, val_label, average='binary', pos_label=1)
+                    accuracy = accuracy_score(validate_data[1], val_label)
+                    f1 = f1_score(validate_data[1], val_label, average='binary', pos_label=1)
                     # print('Validation Data Accuray = %.6lf' %(accuracy))
                     print('Validation Data F1 Score = %.6lf' %(f1))
-                    roc=roc_auc_score(test_label, classify_score)
+                    roc=roc_auc_score(validate_data[1], classify_score)
                     print("roc_classify= %.6lf" %(roc))
                 iter_labeled = iter(train_loader_labeled)
                 train_batch, train_label = next(iter_labeled)
@@ -169,10 +172,10 @@ class ModelNNTorch():
         euclidean_sq = np.square(Y - X)
         return np.sqrt(np.sum(euclidean_sq, axis=1)).ravel()
 
-    def evaluate_model(self, feature, label):
+    def evaluate_model(self, test_data):
         self._model.eval()
-        test_data = Data.TensorDataset(torch.from_numpy(feature), torch.from_numpy(label))
-        test_loader = Data.DataLoader(dataset=test_data, batch_size=64, shuffle=False)
+        test_dataset = Data.TensorDataset(torch.from_numpy(test_data[0]), torch.from_numpy(test_data[1]))
+        test_loader = Data.DataLoader(dataset=test_dataset, batch_size=64, shuffle=False)
         output_feature = []
         output_label = []; output_score = []
         test_loss = 0
