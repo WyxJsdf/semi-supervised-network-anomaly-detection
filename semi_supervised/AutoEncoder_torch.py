@@ -21,7 +21,6 @@ def get_device():
     else:
         device = 'cpu'
     print(device)
-    # return 'cpu'
     return device
 
 class FocalLoss(nn.Module):
@@ -129,7 +128,7 @@ class AutoEncoder():
         self._log_interval = 100
         self._model = self._model.to(self._device)
 
-    def train_model(self, train_labeled_data, feature_unlabeled, validate_data, epoch=10, batch_size=64):
+    def train_model(self, train_labeled_data, feature_unlabeled, validate_data, epoch=10, batch_size=512):
         train_dataset_labeled = Data.TensorDataset(torch.from_numpy(train_labeled_data[0]), torch.from_numpy(train_labeled_data[1]))
         train_dataset_unlabeled = Data.TensorDataset(torch.from_numpy(feature_unlabeled))
         train_loader_labeled = Data.DataLoader(dataset=train_dataset_labeled, batch_size=batch_size, shuffle=True)
@@ -173,7 +172,7 @@ class AutoEncoder():
                 print("roc_autoencoder= %.6lf" %(roc))
                 roc=roc_auc_score(validate_data[1], classify_score)
                 print("roc_classify= %.6lf" %(roc))
-                val_score = StandardScaler().fit_transform(val_score.reshape(-1, 1)).reshape(-1)
+                val_score = MinMaxScaler().fit_transform(val_score.reshape(-1, 1)).reshape(-1)
                 # classify_score = StandardScaler().fit_transform(classify_score.reshape(-1, 1)).reshape(-1)
                 val_score_1 = val_score + classify_score * classify_score
                 roc=roc_auc_score(validate_data[1], val_score_1)

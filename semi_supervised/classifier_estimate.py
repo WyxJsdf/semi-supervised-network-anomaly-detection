@@ -17,14 +17,32 @@ from torch.autograd import Variable
 # cudnn.benchmark = True
 max_score = 0
 
+CUDA = 'cuda:4'
+
 def get_device():
     if torch.cuda.is_available():
-        device = 'cuda:1'
+        device = CUDA
     else:
         device = 'cpu'
     print(device)
-    return 'cpu'
     return device
+
+def print_confidence_each_class(predicted_score, raw_label):
+    sum_classes = {}
+    num_classes = {}
+    # h = []
+    for i in range(len(predicted_score)):
+        if raw_label[i] not in sum_classes:
+            sum_classes[raw_label[i]] = 0
+            num_classes[raw_label[i]] = 0
+        # if raw_label[i] == FILTER_CLASS_NAME:
+            # h.append(predicted_score[i])
+            # print("class:%s confidence:%.6lf classify:%.6lf" %(raw_label[i], confidence[i], predicted_score[i]))
+        sum_classes[raw_label[i]] += predicted_score[i]
+        num_classes[raw_label[i]] += 1
+    # print(h)
+    for p in sum_classes:
+        print("confidence of %s: %.6lf" %(p, sum_classes[p] / num_classes[p]))
 
 class FocalLoss(nn.Module):
     r"""
@@ -104,8 +122,19 @@ class ModelAutoEncoder(nn.Module):
             nn.Linear(25, 50),
             nn.ReLU(True),
             nn.Linear(50, num_features), nn.Tanh())
-        self.classifier = nn.Linear(10, 2)
-        self.confidence = nn.Linear(10, 1)
+        self.classifier = nn.Sequential(
+            nn.Linear(10, 10),
+            nn.ReLU(True),
+            nn.Linear(10, 2)
+        )
+        self.confidence = nn.Sequential(
+            nn.Linear(10, 10),
+            nn.ReLU(True),
+            nn.Linear(10, 10),
+            nn.ReLU(True),
+            nn.Linear(10, 1)
+        )
+
         self.supervised = True
 
 
@@ -122,7 +151,9 @@ class ModelAutoEncoder(nn.Module):
 
 
 class ConfidenceAutoEncoder():
-    def __init__(self, num_features, budget=0.3):
+    def __init__(self, num_features, cuda, budget=0.3):
+        global CUDA
+        CUDA=cuda
         self._model = ModelAutoEncoder(num_features).double()
         self._device = get_device()
         self._criterion = nn.MSELoss()
@@ -133,6 +164,9 @@ class ConfidenceAutoEncoder():
         self._model = self._model.to(self._device)
 
         self.budget = budget
+        self.theta = 100
+        print("now budget = " + str(budget))
+        print("now theta = " + str(self.theta))
 
     def encode_onehot(self, labels, n_classes=2):
         onehot = torch.FloatTensor(labels.size()[0], n_classes)
@@ -142,13 +176,13 @@ class ConfidenceAutoEncoder():
         onehot.scatter_(1, labels.view(-1, 1), 1)
         return onehot
 
-    def train_model(self, train_labeled_data, feature_unlabeled, validate_data, epoch=5, batch_size=64):
+    def train_model(self, train_labeled_data, feature_unlabeled, validate_data, epoch=5, batch_size=512):
         train_dataset_labeled = Data.TensorDataset(torch.from_numpy(train_labeled_data[0]), torch.from_numpy(train_labeled_data[1]))
         train_dataset_unlabeled = Data.TensorDataset(torch.from_numpy(feature_unlabeled))
         train_loader_labeled = Data.DataLoader(dataset=train_dataset_labeled, batch_size=batch_size, shuffle=True)
         train_loader_unlabeled = Data.DataLoader(dataset=train_dataset_unlabeled, batch_size=batch_size, shuffle=True)
         train_loss = 0; epoch_id = 0; step = 0
-        lmbda = 0.1
+        lmbda = 0.01
         global max_score
         iter_labeled = iter(train_loader_labeled)
         iter_unlabeled = iter(train_loader_unlabeled)
@@ -175,14 +209,17 @@ class ConfidenceAutoEncoder():
             confidence = torch.clamp(confidence, 0. + eps, 1. - eps)
 
             # Randomly set half of the confidences to 1 (i.e. no hints)
+            # b = Variable(torch.bernoulli(torch.ones(confidence.size())*0.8)).to(self._device)
             b = Variable(torch.bernoulli(torch.Tensor(confidence.size()).uniform_(0, 1))).to(self._device)
             conf = confidence * b + (1 - b)
+            # conf = confidence
             pred_new = pred_original * conf.expand_as(pred_original) + labels_onehot * (1 - conf.expand_as(labels_onehot))
             # pred_new = torch.log(pred_original)
 
             xentropy_loss = self._criterion_classify(pred_new, train_label.long())
             confidence_loss = -torch.log(confidence)
-            confidence_loss[train_label == 1] = confidence_loss[train_label == 1] * 20
+            confidence_loss[train_label == 1] = confidence_loss[train_label == 1] * self.theta
+            # confidence_loss[train_label == 0] = confidence_loss[train_label == 0] * (1-self.theta)
             confidence_loss = torch.mean(confidence_loss)
 
 
@@ -230,17 +267,23 @@ class ConfidenceAutoEncoder():
                 # val_score = StandardScaler().fit_transform(val_score.reshape(-1, 1)).reshape(-1)
                 val_score = MinMaxScaler().fit_transform(val_score.reshape(-1, 1)).reshape(-1)
 
-                val_score_0 = val_score + 2*confidence_score * (classify_score * classify_score)
+                # val_score_3 = (1 - confidence_score) * val_score + confidence_score * classify_score * 3
+                val_score_3 = val_score - confidence_score *0.05 + classify_score
+                roc=roc_auc_score(validate_data[1], val_score_3)
+                print("roc_ensemble_simple= %.6lf" %(roc))
+
+                val_score_0 = val_score + classify_score
                 roc=roc_auc_score(validate_data[1], val_score_0)
                 print("roc_ensemble_raw= %.6lf" %(roc))
 
                 # classify_score = StandardScaler().fit_transform(classify_score.reshape(-1, 1)).reshape(-1)
-                val_score_1 = val_score + classify_score * classify_score
+                val_score_1 = val_score + classify_score * classify_score * 2
                 roc=roc_auc_score(validate_data[1], val_score_1)
-                print("roc_ensemble= %.6lf" %(roc))
+                print("roc_ensemble_square= %.6lf" %(roc))
                 val_score_2 = val_score + 2*confidence_score * (classify_score * classify_score-0.05)
                 roc=roc_auc_score(validate_data[1], val_score_2)
                 print("roc_ensemble_confidence= %.6lf" %(roc))
+                print_confidence_each_class(confidence_score, validate_data[2])
                 if roc > max_score:
                     max_score = roc
                     torch.save(self._model.state_dict(), os.path.join("estimate_model.ckpt"))
@@ -260,9 +303,9 @@ class ConfidenceAutoEncoder():
             train_loss += loss.data.cpu().numpy()
             self._optimizer.step()
             if (step + 1) % self._log_interval == 0:
-                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.8f}'.format(
+                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.8f} Lmbda:{}'.format(
                     epoch_id, (step + 1)* len(train_batch), len(train_loader_unlabeled.dataset),
-                    100. * (step + 1) / len(train_loader_unlabeled), train_loss / self._log_interval))
+                    100. * (step + 1) / len(train_loader_unlabeled), train_loss / self._log_interval, lmbda))
                 train_loss = 0
 
             step += 1
