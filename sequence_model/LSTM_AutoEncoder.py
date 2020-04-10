@@ -92,12 +92,12 @@ class Config(object):
     # training parameters
     self.num_layers = 2
     self.batch_size = 64
-    self.lr = 0.001
+    self.lr = 0.0005
     self.save_path = "result"
     self.init()
 
     # model parameters
-    self.hidden_size = 128
+    self.hidden_size = 64
     self.embedding_size = embedding_size
     self.num_classes = 2
     self.seq_length = window_size
@@ -179,14 +179,14 @@ class LSTMAutoEncoder():
         self._model = LSTMModel(self._config).double()
         self._criterion = nn.MSELoss(size_average=True)
         # self._criterion_classify = nn.CrossEntropyLoss()
-        self._criterion_classify = FocalLoss(alpha=torch.Tensor([1, 0.25]))
+        self._criterion_classify = FocalLoss()
 
         self._optimizer = torch.optim.Adam(self._model.parameters(), lr=self._config.lr)
         self._log_interval = 100
         self._model = self._model.to(self._device)
 
 
-    def train_model(self, train_labeled_data, train_unlabeled_data, validation_data, epoch=30, batch_size=64):
+    def train_model(self, train_labeled_data, train_unlabeled_data, validation_data, epoch=20, batch_size=128):
         # feature_labeled = feature_labeled.trans
         feature_unlabeled, seq_length_unlabeled = train_unlabeled_data
         feature_labeled, label, seq_length_labeled = train_labeled_data
@@ -196,8 +196,8 @@ class LSTMAutoEncoder():
                                                    torch.from_numpy(seq_length_labeled))
         train_dataset_unlabeled = Data.TensorDataset(torch.from_numpy(feature_unlabeled),
                                                      torch.from_numpy(seq_length_unlabeled))
-        train_loader_labeled = Data.DataLoader(dataset=train_dataset_labeled, batch_size=64, shuffle=True)
-        train_loader_unlabeled = Data.DataLoader(dataset=train_dataset_unlabeled, batch_size=64, shuffle=True)
+        train_loader_labeled = Data.DataLoader(dataset=train_dataset_labeled, batch_size=batch_size, shuffle=True)
+        train_loader_unlabeled = Data.DataLoader(dataset=train_dataset_unlabeled, batch_size=batch_size, shuffle=True)
         train_loss = 0
         epoch_id = 0; step = 0
         iter_unlabeled = iter(train_loader_unlabeled)
@@ -228,7 +228,7 @@ class LSTMAutoEncoder():
             train_batch = train_batch.to(self._device)
             train_label = train_label.to(self._device)
             decoded = self._model(train_batch, train_seq_length)
-            loss = self._criterion_classify(decoded, train_label.long())
+            loss = self._criterion_classify(decoded, train_label.long()) * 2
             self._optimizer.zero_grad()
             loss.backward()
             train_loss += loss.data.cpu().numpy()

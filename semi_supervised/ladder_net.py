@@ -79,7 +79,7 @@ def add_noise( inputs , noise_std ):
 
 
 def get_ladder_network_fc(layer_sizes=[784, 1000, 500, 250, 250, 250, 10], 
-     noise_std=0.03,
+     noise_std=0.00,
      denoising_cost=[10.0, 1.0, 1, 1, 1, 1, 1]):
 
     L = len(layer_sizes) - 1  # number of layers

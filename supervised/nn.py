@@ -17,9 +17,9 @@ class SimpleNN(object):
 
     def deep_autoencoder(self):
         input_tensor = Input(shape=(self._num_features,))
-        encoder = Dense(100, activation='relu')(input_tensor)
-        encoder = Dense(80, activation='relu')(encoder)
-        encoder_output = Dense(10, activation=None)(encoder)
+        encoder = Dense(50, activation='relu')(input_tensor)
+        encoder = Dense(25, activation='relu')(encoder)
+        encoder_output = Dense(10)(encoder)
 
 
         model_encoder = Model(input_tensor, encoder_output)
@@ -29,8 +29,8 @@ class SimpleNN(object):
         model_labeled = model_encoder(input_labeled)
         model_unlabeled = model_encoder(input_labeled)
 
-        decoder = Dense(80, activation='relu')(model_unlabeled)
-        decoder = Dense(100, activation='relu')(decoder)
+        decoder = Dense(25, activation='relu')(model_unlabeled)
+        decoder = Dense(50, activation='relu')(decoder)
         decoder_output = Dense(self._num_features, activation='tanh', name='decoder_output')(decoder)
 
         classify_output = Dense(2, activation='softmax', name='classify_output')(model_labeled)
@@ -43,7 +43,7 @@ class SimpleNN(object):
         self._optimizer = optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-8)
         # plot_model(self._model, show_shapes=True)
         print(self._model.summary())
-        self._model.compile(optimizer=self._optimizer, loss={
+        self._model.compile(optimizer=optimizer, loss={
                             'classify_output': 'binary_crossentropy'}, loss_weights={
                             'classify_output': 1}, metrics={'classify_output': ['accuracy', metrics.categorical_accuracy]})
 
@@ -55,12 +55,12 @@ class SimpleNN(object):
             {'input_labeled': feature_labeled},
             {
             'classify_output': label},
-            validation_data=(test_feature, {'classify_output': to_categorical(test_label),
-                                            }),
+            # validation_data=(test_feature, {'classify_output': to_categorical(test_label),
+            #                                 }),
             epochs=epochs,
             batch_size=batch_size
         )
-        print(hist.history)
+        # print(hist.history)
 
     def get_distance(self, X, Y):
         euclidean_sq = np.square(Y - X)
@@ -69,4 +69,4 @@ class SimpleNN(object):
     def evaluate_model(self, feature):
         predicted_class = self._model.predict(
             {'input_labeled': feature})
-        return np.argmax(predicted_class, axis=1)
+        return predicted_class, np.argmax(predicted_class, axis=1)

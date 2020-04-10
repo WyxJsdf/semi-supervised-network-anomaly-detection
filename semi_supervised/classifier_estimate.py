@@ -10,7 +10,7 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 from torch.autograd import Variable
 import csv
-
+import json
 #os.environ["CUDA_VISIBLE_DEVICES"] = "6"
 # use_cuda = torch.cuda.is_available()
 # device = torch.device("cuda:6" if use_cuda else "cpu")
@@ -123,16 +123,16 @@ class ModelAutoEncoder(nn.Module):
     def __init__(self, num_features):
         super(ModelAutoEncoder, self).__init__()
         self.encoder = nn.Sequential(
-            nn.Linear(num_features, 50),
+            nn.Linear(num_features, 100),
             nn.ReLU(True),
-            nn.Linear(50, 25),
-            nn.ReLU(True), nn.Linear(25, 10))
+            nn.Linear(100, 80),
+            nn.ReLU(True), nn.Linear(80, 10))
         self.decoder = nn.Sequential(
-            nn.Linear(10, 25),
+            nn.Linear(10, 80),
             nn.ReLU(True),
-            nn.Linear(25, 50),
+            nn.Linear(80, 100),
             nn.ReLU(True),
-            nn.Linear(50, num_features), nn.Tanh())
+            nn.Linear(100, num_features), nn.Tanh())
         self.classifier = nn.Sequential(
             nn.Linear(10, 10),
             nn.ReLU(True),
@@ -245,7 +245,7 @@ class ConfidenceAutoEncoder():
 
             self._optimizer.zero_grad()
             total_loss.backward()
-            train_loss += total_loss.data.cpu().numpy()
+            train_loss += confidence_loss.data.cpu().numpy()
             self._optimizer.step()
 
             # xentropy_loss_avg += xentropy_loss.data[0]
@@ -270,26 +270,48 @@ class ConfidenceAutoEncoder():
                 epoch_id += 1
                 step = 0
                 train_loss = 0
+                # _, _, classify_score, confidence_score = self.evaluate_model(train_labeled_data)
+                # print_confidence_each_class(classify_score, train_labeled_data[2])
+                # print_confidence_each_class(confidence_score, train_labeled_data[2])
                 val_label, val_score, classify_score, confidence_score = self.evaluate_model(validate_data)
                 self._model.train()
-                roc=roc_auc_score(validate_data[1], val_score)
-                print("roc_autoencoder= %.6lf" %(roc))
-                roc=roc_auc_score(validate_data[1], classify_score)
-                print("roc_classify= %.6lf" %(roc))
+                roc_rec=roc_auc_score(validate_data[1], val_score)
+                print("roc_autoencoder= %.6lf" %(roc_rec))
+                roc_cls=roc_auc_score(validate_data[1], classify_score)
+                print("roc_classify= %.6lf" %(roc_cls))
 
                 # val_score = StandardScaler().fit_transform(val_score.reshape(-1, 1)).reshape(-1)
                 val_score = MinMaxScaler().fit_transform(val_score.reshape(-1, 1)).reshape(-1)
+                # val_score = val_score / 4
 
                 # val_score_3 = classify_score * confidence_score + (1-classify_score) * (1-confidence_score)
-                val_score_3 = val_score + confidence_score * (classify_score-0.05)
                 # val_score_3 = (1 - confidence_score) * val_score + confidence_score * classify_score * 3
                 # val_score_3 = val_score - confidence_score *0.05 + classify_score
+                val_score_3 =  classify_score - confidence_score * 0.05
                 roc=roc_auc_score(validate_data[1], val_score_3)
-                print("roc_ensemble_simple= %.6lf" %(roc))
+                print("roc_ensemble_only_0_0.05= %.6lf" %(roc))
+                val_score_3 = classify_score * confidence_score- confidence_score * 0.5
+                roc=roc_auc_score(validate_data[1], val_score_3)
+                print("roc_ensemble_only_1_0.05= %.6lf" %(roc))
+                val_score_3 = val_score + classify_score - confidence_score * 0.15
+                roc=roc_auc_score(validate_data[1], val_score_3)
+                print("roc_ensemble_simple_0_0.15= %.6lf" %(roc))
+                val_score_3 = val_score + confidence_score * classify_score
+                roc=roc_auc_score(validate_data[1], val_score_3)
+                print("roc_ensemble_simple_1_0.00= %.6lf" %(roc))
+                val_score_3 = val_score + confidence_score * classify_score - confidence_score * 0.05
+                roc=roc_auc_score(validate_data[1], val_score_3)
+                print("roc_ensemble_simple_1_0.05= %.6lf" %(roc))
+                val_score_3 = val_score + confidence_score * classify_score - confidence_score * 0.1
+                roc=roc_auc_score(validate_data[1], val_score_3)
+                print("roc_ensemble_simple_1_0.10= %.6lf" %(roc))
+                val_score_3 = val_score + confidence_score * classify_score - confidence_score * 0.15
+                roc=roc_auc_score(validate_data[1], val_score_3)
+                print("roc_ensemble_simple_1_0.15= %.6lf" %(roc))
 
                 val_score_0 = val_score + classify_score
-                roc=roc_auc_score(validate_data[1], val_score_0)
-                print("roc_ensemble_raw= %.6lf" %(roc))
+                roc_combine=roc_auc_score(validate_data[1], val_score_0)
+                print("roc_ensemble_raw= %.6lf" %(roc_combine))
 
                 # classify_score = StandardScaler().fit_transform(classify_score.reshape(-1, 1)).reshape(-1)
                 val_score_1 = val_score + classify_score * classify_score * 2
@@ -298,16 +320,44 @@ class ConfidenceAutoEncoder():
                 val_score_2 = val_score + 2*confidence_score * (classify_score * classify_score-0.05)
                 roc=roc_auc_score(validate_data[1], val_score_2)
                 print("roc_ensemble_confidence= %.6lf" %(roc))
+                val_score_3 = val_score + confidence_score * classify_score - confidence_score * 0.05
+                roc=roc_auc_score(validate_data[1], val_score_3)
+                print("roc_ensemble_result= %.6lf" %(roc))
+
+                print_confidence_each_class(classify_score, validate_data[2])
                 print_confidence_each_class(confidence_score, validate_data[2])
                 if roc > max_score:
-                    max_score = roc
-                    new_name = "{}_{:.4f}.csv".format(self.save_name, roc)
-                    conf_name = "{}_{:.4f}_conf.csv".format(self.save_name, roc)
+                    # max_score = roc
+                    new_name = "{}_{:.4f}_{}.json".format(self.save_name, roc, epoch_id)
+                    conf_name = "{}_{:.4f}_{}_conf.json".format(self.save_name, roc, epoch_id)
                     torch.save(self._model.state_dict(), os.path.join("estimate_model.ckpt"))
-                    output_score((validate_data[1], val_score_2), new_name)
-                    output_score((classify_score, confidence_score, validate_data[2]), conf_name)
-
-
+                    # output_score((validate_data[1], val_score_2), new_name)
+                    # output_score((classify_score, confidence_score, validate_data[2]), conf_name)
+                    dicts_cls = {}; dicts_rec = {}; dicts_combine={}; dicts_conf={}
+                    dicts={'dicts_cls':dicts_cls, 'dicts_rec': dicts_rec, 'dicts_combine': dicts_combine, 'dicts_conf': dicts_conf}
+                    dicts['test_label'] = list(validate_data[1].astype(np.float))
+                    dicts['test_raw_label'] = list(validate_data[2])
+                    dicts_cls['test_auc'] = roc_cls
+                    dicts_cls['test_scores'] = list(classify_score)
+                    dicts_rec['test_auc'] = roc_rec
+                    dicts_rec['test_scores'] = list(val_score)
+                    dicts_combine['test_auc'] = roc_combine
+                    dicts_combine['test_scores'] = list(val_score_0)
+                    dicts_conf['test_auc'] = roc
+                    dicts_conf['test_scores'] = list(val_score_3)
+                    
+                    with open(new_name,"w") as f:
+                        json.dump(dicts,f)
+                    f.close()
+                    dicts = {}
+                    dicts['test_label'] = list(validate_data[1].astype(np.float))
+                    dicts['test_raw_label'] = list(validate_data[2])
+                    dicts['test_auc'] = roc
+                    dicts['test_scores'] = list(classify_score)
+                    dicts['conf_scores'] = list(confidence_score)
+                    with open(conf_name,"w") as f:
+                        json.dump(dicts,f)
+                    f.close()
                 accuracy = accuracy_score(validate_data[1], val_label)
                 f1 = f1_score(validate_data[1], val_label, average='binary', pos_label=1)
                 # print('Validation Data Accuray = %.6lf' %(accuracy))
@@ -319,7 +369,7 @@ class ConfidenceAutoEncoder():
             loss = self._criterion(decoded, train_batch)
             self._optimizer.zero_grad()
             loss.backward()
-            train_loss += loss.data.cpu().numpy()
+            # train_loss += loss.data.cpu().numpy()
             self._optimizer.step()
             if (step + 1) % self._log_interval == 0:
                 print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.8f} Lmbda:{}'.format(

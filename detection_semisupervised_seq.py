@@ -71,24 +71,26 @@ def transform(data_list):
     seq_length = []
     for data in data_list:
         feature = []
-        for i in range(min(len(data) - 1, WINDOW_SIZE)):
-            src_port, dst_port, pllength, delta_ts, TCP_winsize = [int(ele) for ele in data[i].split('|')]
-            emb_src_port = big_unpackbits(src_port, 2)
+        for i in range(min(len(data) - 2, WINDOW_SIZE)):
+            dst_port, hlength, pllength, delta_ts, TCP_winsize = [int(ele) for ele in data[i].split('|')]
+            # emb_src_port = big_unpackbits(src_port, 2)
             emb_dst_port = big_unpackbits(dst_port, 2)
+            emb_hlength = big_unpackbits(hlength, 4)
             emb_pllength = big_unpackbits(pllength, 4)
             emb_TCP_winsize = big_unpackbits(TCP_winsize, 4)
             emb_delta_ts = np.array([delta_ts])
-            emb_dst_port = np.array([dst_port])
+            # emb_dst_port = np.array([dst_port])
+            # emb_hlength = np.array([hlength])
             emb_pllength = np.array([pllength])
-            emb_TCP_winsize = np.array([TCP_winsize])
-            h = np.concatenate((emb_dst_port, emb_TCP_winsize, emb_pllength, emb_delta_ts))
+            # emb_TCP_winsize = np.array([TCP_winsize])
+            h = np.concatenate((emb_dst_port, emb_TCP_winsize,emb_hlength, emb_pllength, emb_delta_ts))
             feature.append(h)
-        if len(data) <= WINDOW_SIZE:
-            for i in range(WINDOW_SIZE + 1 - len(data)):
+        if len(data) - 2 < WINDOW_SIZE:
+            for i in range(WINDOW_SIZE + 2 - len(data)):
                 feature.append(np.array([0] * len(h)))
         features.append(np.stack(feature))
-        labels.append(1 - int(data[-1]))
-        seq_length.append(min(len(data) - 1, WINDOW_SIZE))
+        labels.append(int(data[-2]))
+        seq_length.append(min(len(data) - 2, WINDOW_SIZE))
     return (np.stack(features).astype(np.double).reshape(len(features), -1)
            , np.array(labels, dtype=int), np.array(seq_length, dtype=int))
 
@@ -125,7 +127,7 @@ def get_label_n(predicted_score, contam):
 
 def exec_lstm_classify(train_labeled_data, test_data, contam, cuda):
     lstmClassifier = LSTMClassifier(train_labeled_data[0].shape[2], cuda)
-    lstmClassifier.train_model(train_labeled_data, test_data, epoch=500)
+    lstmClassifier.train_model(train_labeled_data, test_data, epoch=3000)
     predicted_label, classify_score = lstmClassifier.evaluate_model(test_data)
 
     roc=roc_auc_score(test_data[1], classify_score)
@@ -189,7 +191,7 @@ def main(args):
 
     dataset = shuffle_data(dataset)
     train_data, test_data = split_dataset_horizontal(dataset, 0.6, True)
-    train_labeled_data, train_unlabeled_data = split_dataset_horizontal(train_data, 0.2, False)
+    train_labeled_data, train_unlabeled_data = split_dataset_horizontal(train_data, 0.01, False)
     train_labeled_feature, train_label, train_labeled_seqlen = transform(train_labeled_data)
     train_unlabeled_feature, _, train_unlabeled_seqlen = transform(train_unlabeled_data)
     test_feature, test_label, test_seqlen = transform(test_data)
@@ -208,10 +210,10 @@ def main(args):
     train_labeled_feature = train_labeled_feature.reshape(len(train_labeled_feature), WINDOW_SIZE, -1)
     test_feature = test_feature.reshape(len(test_feature), WINDOW_SIZE, -1)
     print("Preprocessing Data done......")
-    # exec_lstm_classify((train_labeled_feature, train_label, train_labeled_seqlen), (test_feature, test_label, test_seqlen), args.contam, args.cuda)
-    exec_lstm_autoencoder((train_labeled_feature, train_label, train_labeled_seqlen),
-                          (train_unlabeled_feature, train_unlabeled_seqlen),
-                          (test_feature, test_label, test_seqlen), args.contam, args.cuda)
+    exec_lstm_classify((train_labeled_feature, train_label, train_labeled_seqlen), (test_feature, test_label, test_seqlen), args.contam, args.cuda)
+    # exec_lstm_autoencoder((train_labeled_feature, train_label, train_labeled_seqlen),
+    #                       (train_unlabeled_feature, train_unlabeled_seqlen),
+    #                       (test_feature, test_label, test_seqlen), args.contam, args.cuda)
     # exec_lstm_autoencoder_chain((train_labeled_feature, train_label, train_labeled_seqlen),
     #                       (train_unlabeled_feature, train_unlabeled_seqlen),
     #                       (test_feature, test_label, test_seqlen), args.contam, args.cuda)

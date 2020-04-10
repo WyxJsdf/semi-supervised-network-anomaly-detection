@@ -26,6 +26,23 @@ def get_device():
     print(device)
     return device
 
+def print_confidence_each_class(predicted_score, raw_label):
+    sum_classes = {}
+    num_classes = {}
+    # h = []
+    for i in range(len(predicted_score)):
+        if raw_label[i] not in sum_classes:
+            sum_classes[raw_label[i]] = 0
+            num_classes[raw_label[i]] = 0
+        # if raw_label[i] == FILTER_CLASS_NAME:
+            # h.append(predicted_score[i])
+            # print("class:%s confidence:%.6lf classify:%.6lf" %(raw_label[i], confidence[i], predicted_score[i]))
+        sum_classes[raw_label[i]] += predicted_score[i]
+        num_classes[raw_label[i]] += 1
+    # print(h)
+    for p in sum_classes:
+        print("confidence of %s: %.6lf" %(p, sum_classes[p] / num_classes[p]))
+
 class FocalLoss(nn.Module):
     r"""
         This criterion is a implemenation of Focal Loss, which is proposed in 
@@ -94,16 +111,16 @@ class ModelAutoEncoder(nn.Module):
     def __init__(self, num_features):
         super(ModelAutoEncoder, self).__init__()
         self.encoder = nn.Sequential(
-            nn.Linear(num_features, 50),
+            nn.Linear(num_features, 100),
             nn.ReLU(True),
-            nn.Linear(50, 25),
-            nn.ReLU(True), nn.Linear(25, 10))
+            nn.Linear(100, 80),
+            nn.ReLU(True), nn.Linear(80, 10))
         self.decoder = nn.Sequential(
-            nn.Linear(10, 25),
+            nn.Linear(10, 80),
             nn.ReLU(True),
-            nn.Linear(25, 50),
+            nn.Linear(80, 100),
             nn.ReLU(True),
-            nn.Linear(50, num_features), nn.Tanh())
+            nn.Linear(100, num_features), nn.Tanh())
         self.classifier = nn.Linear(10, 2)
         self.supervised = True
 
@@ -129,7 +146,7 @@ class AutoEncoder():
         self._criterion = nn.MSELoss()
         # self._criterion_classify = nn.CrossEntropyLoss()
         self._criterion_classify = FocalLoss()
-        self._optimizer = torch.optim.Adam(self._model.parameters(), lr=0.0005)
+        self._optimizer = torch.optim.Adam(self._model.parameters(), lr=0.001)
         self._log_interval = 100
         self._model = self._model.to(self._device)
 
@@ -171,8 +188,11 @@ class AutoEncoder():
                 epoch_id += 1
                 step = 0
                 train_loss = 0
+                _, _, classify_score = self.evaluate_model(train_labeled_data)
+                print_confidence_each_class(classify_score, train_labeled_data[2])
                 val_label, val_score, classify_score = self.evaluate_model(validate_data)
                 self._model.train()
+                print_confidence_each_class(classify_score, validate_data[2])
                 roc=roc_auc_score(validate_data[1], val_score)
                 print("roc_autoencoder= %.6lf" %(roc))
                 roc=roc_auc_score(validate_data[1], classify_score)

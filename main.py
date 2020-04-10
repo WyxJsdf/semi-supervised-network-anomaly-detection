@@ -14,7 +14,7 @@ from sklearn.metrics import roc_auc_score, auc, precision_recall_curve
 
 from keras.utils import to_categorical
 
-FILTER_CLASS_NAME=['', 'DoS Hulk', 'DDoS', 'PortScan']
+FILTER_CLASS_NAME=['', 'DoS Hulk', 'DDoS', 'PortScan', 'DoS GoldenEye', 'DoS Slowhttptest', 'DoS slowloris', 'FTP-Patator', 'SSH-Patator']
 # import os
 # os.environ["CUDA_VISIBLE_DEVICES"] = "6"
 
@@ -138,8 +138,8 @@ def exec_autoencoder_estimator(train_labeled_data, train_unlabeled_feature, vali
     predicted_score_std = MinMaxScaler().fit_transform(predicted_score.reshape(-1, 1)).reshape(-1)
     # classify_score = StandardScaler().fit_transform(classify_score.reshape(-1, 1)).reshape(-1)
     predicted_score_new = predicted_score_std + 2*confidence*(classify_score * classify_score-0.05)
-    # output_score((classify_score, confidence, predicted_score, predicted_score_std, predicted_score_new)
-    #              , test_data[2], 'score_estimator.csv')
+    output_score((classify_score, confidence, predicted_score, predicted_score_std, predicted_score_new, test_data[2])
+                 , 'score_estimator.csv')
     roc=roc_auc_score(test_data[1], predicted_score_new)
     print("roc_new= %.6lf" %(roc))
     precision, recall, f1_score, accuracy = eval_data(test_data[1], predicted_label, test_data[2])

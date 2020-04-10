@@ -44,7 +44,7 @@ def clear_specific_class(data, class_name):
     return (data[index])
 
 def shuffle_data(data):
-    data = shuffle(data, random_state=1312)
+    data = shuffle(data, random_state=1310)
     return data
 
 def read_data(path):
@@ -76,12 +76,13 @@ def exec_simplenn_keras(train_labeled_feature, train_label, train_raw_label,
                      test_feature, test_label, test_raw_label, contam):
     simpleNN = SimpleNN(train_labeled_feature.shape[-1])
     simpleNN.train_model(train_labeled_feature, train_label,
-                            test_feature, test_label)
-    predicted_label = simpleNN.evaluate_model(test_feature)
+                            test_feature, test_label, epochs=2000)
+    predicted_score, predicted_label = simpleNN.evaluate_model(test_feature)
     precision, recall, f1_score, accuracy = eval_data(test_label, predicted_label, test_raw_label)
     print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf\naccuracy = %.6lf"
          %(precision, recall, f1_score, accuracy))
-
+    roc=roc_auc_score(test_label, predicted_score[:,1].ravel())
+    print("roc= %.6lf" %(roc))
 def exec_simplenn_torch(train_labeled_feature, train_label, train_raw_label,
                      test_feature, test_label, test_raw_label, contam):
     simpleNN = ModelNNTorch(train_labeled_feature.shape[-1])
@@ -110,22 +111,23 @@ def main(args):
 
     dataset = shuffle_data(dataset)
     train_data, test_data = split_dataset_horizontal(dataset, 0.6, True)
-    train_data = clear_specific_class(train_data, FILTER_CLASS_NAME)
+    # train_data = clear_specific_class(train_data, FILTER_CLASS_NAME)
 
-    train_labeled_data, train_unlabeled_data = split_dataset_horizontal(train_data, 0.01, False)
+    train_labeled_data, train_unlabeled_data = split_dataset_horizontal(train_data, 0.1, False)
     train_labeled_feature, train_label, train_raw_label = split_dataset_vertical(train_labeled_data)
     train_unlabeled_feature, _, _ = split_dataset_vertical(train_unlabeled_data)
     test_feature, test_label, test_raw_label = split_dataset_vertical(test_data)
+
     train_unlabeled_feature, scalar = scale_data(train_unlabeled_feature)
     train_labeled_feature, _ = scale_data(train_labeled_feature, scalar)
     test_feature, _ = scale_data(test_feature, scalar)
     print("Preprocessing Data done......")
-    # exec_svm(train_labeled_feature, train_label, train_raw_label,
-    #                  test_feature, test_label, test_raw_label, args.contam)
+    exec_svm(train_labeled_feature, train_label, train_raw_label,
+                     test_feature, test_label, test_raw_label, args.contam)
     # exec_simplenn_keras(train_labeled_feature, train_label, train_raw_label,
     #                  test_feature, test_label, test_raw_label, args.contam)
-    exec_simplenn_torch(train_labeled_feature, train_label, train_raw_label,
-                     test_feature, test_label, test_raw_label, args.contam)
+    # exec_simplenn_torch(train_labeled_feature, train_label, train_raw_label,
+    #                  test_feature, test_label, test_raw_label, args.contam)
 
 
 if __name__ == '__main__':

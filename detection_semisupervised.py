@@ -120,10 +120,12 @@ def exec_autoencoder_keras(train_labeled_feature, train_label, train_raw_label, 
                      test_feature, test_label, test_raw_label, contam):
     autoencoder = AutoEncoderKeras(train_labeled_feature.shape[-1])
     autoencoder.train_model(train_labeled_feature, train_unlabeled_feature, train_label,
-                            test_feature, test_label)
-    predicted_label, predicted_score = autoencoder.evaluate_model(test_feature)
+                            test_feature, test_label, epochs=5000)
+    classify_score, predicted_label, predicted_score = autoencoder.evaluate_model(test_feature)
     roc=roc_auc_score(test_label, predicted_score)
     print("roc= %.6lf" %(roc))
+    roc=roc_auc_score(test_label, classify_score)
+    print("classifier roc= %.6lf" %(roc))
     # predicted_label = get_label_n(predicted_score, contam)
     precision, recall, f1_score, accuracy = eval_data(test_label, predicted_label, test_raw_label)
     print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf\naccuracy = %.6lf"
@@ -186,6 +188,8 @@ def exec_ladder_net(train_labeled_feature, train_label, train_raw_label, train_u
     for _ in range(20):
         model.fit([train_labeled_feature, train_unlabeled_feature], train_label, epochs=1)
         predicted_label = model.test_model.predict(test_feature, batch_size=100)
+        roc=roc_auc_score(test_label, predicted_label)
+        print("roc= %.6lf" %(roc))
         precision, recall, f1_score, accuracy = eval_data(test_label, predicted_label.argmax(-1), test_raw_label)
         print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf\naccuracy = %.6lf"
             %(precision, recall, f1_score, accuracy))
@@ -236,14 +240,14 @@ def main(args):
     print("Preprocessing Data done......")
     # exec_autoencoder_keras(train_labeled_feature, train_label, train_raw_label, train_unlabeled_feature,
     #                  test_feature, test_label, test_raw_label, args.contam)
-    # exec_autoencoder_torch((train_labeled_feature, train_label, train_raw_label), train_unlabeled_feature,
-    #                        (validate_feature, validate_label, validate_raw_label), 
-    #                        (test_feature, test_label, test_raw_label), 
-    #                        args.contam)
-    exec_autoencoder_estimator((train_labeled_feature, train_label, train_raw_label), train_unlabeled_feature,
+    exec_autoencoder_torch((train_labeled_feature, train_label, train_raw_label), train_unlabeled_feature,
                            (validate_feature, validate_label, validate_raw_label), 
                            (test_feature, test_label, test_raw_label), 
-                           args.contam, args.cuda)
+                           args.contam)
+    # exec_autoencoder_estimator((train_labeled_feature, train_label, train_raw_label), train_unlabeled_feature,
+    #                        (validate_feature, validate_label, validate_raw_label), 
+    #                        (test_feature, test_label, test_raw_label), 
+    #                        args.contam, args.cuda)
     # exec_autoencoder_chain(train_labeled_feature, train_label, train_raw_label, train_unlabeled_feature,
     #                  test_feature, test_label, test_raw_label, args.contam)
     # exec_ladder_net(train_labeled_feature, train_label, train_raw_label, train_unlabeled_feature,

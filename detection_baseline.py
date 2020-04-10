@@ -3,6 +3,7 @@ import argparse
 import numpy as np
 import pandas as pd
 import csv
+import json
 from sklearn.utils import shuffle
 
 from supervised.nn_torch import ModelNNTorch
@@ -16,7 +17,7 @@ from sklearn.metrics import roc_auc_score, auc, precision_recall_curve
 
 from keras.utils import to_categorical
 
-FILTER_CLASS_NAME=['', 'DoS Hulk', 'DDoS', 'PortScan']
+FILTER_CLASS_NAME=['', 'DoS Hulk', 'DDoS', 'PortScan', 'DoS GoldenEye', 'DoS Slowhttptest', 'DoS slowloris', 'FTP-Patator', 'SSH-Patator']
 # import os
 # os.environ["CUDA_VISIBLE_DEVICES"] = "6"
 
@@ -119,7 +120,7 @@ def exec_autoencoder_torch(train_labeled_data, train_unlabeled_feature, validate
     roc=roc_auc_score(test_data[1], predicted_score)
     print("roc_new= %.6lf" %(roc))
 
-    # output_score((classify_score, predicted_score), test_data[2], save_name + '.csv')
+    output_score((classify_score, predicted_score, test_data[2]), 'score_classifier.csv')
     new_name = "{}_{:.4f}.csv".format(save_name, roc)
     output_score((test_data[1], predicted_score), new_name)
     precision, recall, f1_score, accuracy = eval_data(test_data[1], predicted_label, test_data[2])
@@ -136,8 +137,16 @@ def exec_simplenn_torch(train_labeled_data, validate_data, test_data, epoch, con
          %(precision, recall, f1_score, accuracy))
     roc=roc_auc_score(test_data[1], predicted_score)
     print("roc= %.6lf" %(roc))
-    new_name = "{}_{:.4f}.csv".format(save_name, roc)
-    output_score((test_data[1], predicted_score), new_name)
+    new_name = "{}_{:.4f}.json".format(save_name, roc)
+    dicts = {}
+    dicts['test_auc'] = roc
+    dicts['test_scores'] = list(predicted_score)
+    dicts['test_label'] = list(test_data[1].astype(np.float))
+    dicts['test_raw_label'] = list(test_data[2])
+    with open(new_name,"w") as f:
+        json.dump(dicts,f)
+    f.close()
+    # output_score((test_data[1], predicted_score), new_name)
 
 def exec_isolate_forest(train_feature, test_data, contam, save_name):
     print("now execute the model Isolate Forest!")
@@ -149,10 +158,17 @@ def exec_isolate_forest(train_feature, test_data, contam, save_name):
     print("roc auc= %.6lf" %(roc))
     new_name = "{}_{:.4f}.csv".format(save_name, roc)
     output_score((test_data[1], predicted_score), new_name)
-
+    dicts = {}
+    dicts['test_auc'] = roc
+    dicts['test_scores'] = list(predicted_score)
+    dicts['test_label'] = list(test_data[1].astype(np.float))
+    dicts['test_raw_label'] = list(test_data[2])
+    with open(new_name,"w") as f:
+        json.dump(dicts,f)
+    f.close()
 
     predicted_label = isolate_forest.evaluate_model(test_data[0])
-    precision, recall, f1_score = eval_data(test_data[1], predicted_label, test_data[2])
+    precision, recall, f1_score, accuracy = eval_data(test_data[1], predicted_label, test_data[2])
     print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf" %(precision, recall, f1_score))
 
 
@@ -165,11 +181,13 @@ def main(args):
     # validate_data, test_data = split_dataset_horizontal(test_data, 0.5, True)
     validate_data=test_data
 
-    
+
     train_data = clear_specific_class(train_data, FILTER_CLASS_NAME[args.filter_class])
     # validate_data = clear_specific_class(validate_data, FILTER_CLASS_NAME)
 
-
+    # for i in range(train_data.shape[1]-1):
+    #     h=train_data[:,i]
+    #     print("column=%d max=%.6f min=%.6f mean=%.6f" %(i, np.max(h),np.min(h),np.mean(h)))
     train_labeled_data, train_unlabeled_data = split_dataset_horizontal(train_data, args.ratio_label, False)
 
     train_labeled_feature, train_label, train_raw_label = split_dataset_vertical(train_labeled_data)

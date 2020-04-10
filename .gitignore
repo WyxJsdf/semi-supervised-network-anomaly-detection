@@ -1,5 +1,7 @@
 # Byte-compiled / optimized / DLL files
 *.csv
+*.json
+*.pdf
 *.ckpt
 __pycache__/
 *.py[cod]

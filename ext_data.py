@@ -15,7 +15,7 @@ isMerged = [1, 1, 1, 1, 1, 1, 1, 1]
 absolute_path = "../data/IDS2017/GeneratedLabelledFlows/TrafficLabelling/"
 output_path = "cicids2017_all_data.csv"
 output_path = "cicids2017_sample_0.01_500000_avg.csv"
-output_path = "cicids2017_sample_avg"
+output_path = "cicids2017_sample"
 labels = {}
 
 def parse_arguments(argv):
@@ -99,7 +99,7 @@ def sample_all_file(all_samples=500000, anomaly_ratio=0.01):
             print(df.shape)
     df = sample_number(df, pos_samples=pos_samples, neg_samples=neg_samples)
     df = df.sample(frac=1)
-    outpath = output_path + '_' + str(all_samples) + '_' + str(anomaly_ratio) + '.csv'
+    outpath = output_path + '_' + str(anomaly_ratio) + '_' + str(all_samples) + '.csv'
     df.to_csv(outpath, index=False)
 
 def main(args):
