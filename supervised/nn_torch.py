@@ -139,7 +139,7 @@ class ModelNNTorch():
                 epoch_id += 1
                 step = 0
                 train_loss = 0
-                if epoch_id % 2000 == 0:
+                if epoch_id % 100 == 0:
                     val_label, classify_score = self.evaluate_model(validate_data)
                     self._model.train()
                     accuracy = accuracy_score(validate_data[1], val_label)

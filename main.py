@@ -138,8 +138,8 @@ def exec_autoencoder_estimator(train_labeled_data, train_unlabeled_feature, vali
     predicted_score_std = MinMaxScaler().fit_transform(predicted_score.reshape(-1, 1)).reshape(-1)
     # classify_score = StandardScaler().fit_transform(classify_score.reshape(-1, 1)).reshape(-1)
     predicted_score_new = predicted_score_std + 2*confidence*(classify_score * classify_score-0.05)
-    output_score((classify_score, confidence, predicted_score, predicted_score_std, predicted_score_new, test_data[2])
-                 , 'score_estimator.csv')
+    output_score((classify_score, confidence, predicted_score, predicted_score_std, predicted_score_new, test_data[2]),
+                 'score_estimator.csv')
     roc=roc_auc_score(test_data[1], predicted_score_new)
     print("roc_new= %.6lf" %(roc))
     precision, recall, f1_score, accuracy = eval_data(test_data[1], predicted_label, test_data[2])
@@ -158,7 +158,7 @@ def main(args):
 
     
     train_data = clear_specific_class(train_data, FILTER_CLASS_NAME[args.filter_class])
-    # validate_data = clear_specific_class(validate_data, FILTER_CLASS_NAME)
+    # validate_data = clear_specific_class(validate_data, FILTER_CLASS_NAME[args.filter_class])
 
 
     train_labeled_data, train_unlabeled_data = split_dataset_horizontal(train_data, args.ratio_label, False)
@@ -180,7 +180,7 @@ def main(args):
     train_labeled_data = (train_labeled_feature, train_label, train_raw_label)
     validate_data = (validate_feature, validate_label, validate_raw_label)
     test_data = (test_feature, test_label, test_raw_label)
-    save_name = "{}_{:.2f}_{}".format("CUE_SSAD", args.ratio_label, FILTER_CLASS_NAME[args.filter_class])
+    save_name = "{}_{:.3f}_{}".format("CUE_SSAD", args.ratio_label, FILTER_CLASS_NAME[args.filter_class])
     save_name = args.output_path + '/' + save_name
     exec_autoencoder_estimator(train_labeled_data, train_unlabeled_feature,
                            validate_data, test_data, args.epoch, args.batch_size, args.theta,

@@ -37,10 +37,10 @@ def revert_csv(df):
             labels[row[' Label']] = 1
     df['RawLabel'] = df[' Label']
     df[' Label'] = df[' Label'].apply(lambda x: 0 if 'BENIGN' in x else 1)
-    try:
-        df = df.drop(columns=['Flow ID',' Source IP',' Source Port',' Destination IP',' Protocol',' Timestamp'])
-    except:
-        pass
+    # try:
+    #     df = df.drop(columns=['Flow ID',' Source IP',' Source Port',' Destination IP',' Protocol',' Timestamp'])
+    # except:
+    #     pass
     return df
 
 def sample_rate_pos(df, sampleRate=0.1):
@@ -103,8 +103,8 @@ def sample_all_file(all_samples=500000, anomaly_ratio=0.01):
     df.to_csv(outpath, index=False)
 
 def main(args):
-    # merge_all_file()
-    sample_all_file(500000, args.ratio)
+    merge_all_file()
+    # sample_all_file(500000, args.ratio)
     print(labels)
 
 if __name__ == '__main__':
