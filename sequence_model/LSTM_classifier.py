@@ -95,7 +95,7 @@ class Config(object):
     self.init()
 
     # model parameters
-    self.hidden_size = 128
+    self.hidden_size = 64
     self.embedding_size = embedding_size
     self.num_classes = 2
     self.seq_length = 20
@@ -169,7 +169,7 @@ class LSTMClassifier():
         self._model = self._model.to(self._device)
 
 
-    def train_model(self, train_labeled_data, validation_data, epoch=500, batch_size=64):
+    def train_model(self, train_labeled_data, validation_data, epoch=3000, batch_size=64):
         # feature_labeled = feature_labeled.trans
         feature_labeled, label, seq_length = train_labeled_data
         print(feature_labeled.shape)
@@ -187,7 +187,7 @@ class LSTMClassifier():
                 train_seq_length = train_seq_length.to(self._device)
 
                 output = self._model(train_batch, train_seq_length)
-                loss = self._criterion_classify(output, train_label.long())
+                loss = self._criterion(output, train_label.long())
                 self._optimizer.zero_grad()
                 loss.backward()
                 train_loss += loss.data.cpu().numpy()
@@ -201,7 +201,7 @@ class LSTMClassifier():
                         100. * (step + 1) / len(train_loader), train_acc, train_loss / self._log_interval))
                     train_loss = 0
                 # torch.save(model.state_dict(), os.path.join(config.save_path, "model.ckpt"))
-            if epoch_id % 50 == 0:
+            if epoch_id % 200 == 0:
                 val_label, classify_score = self.evaluate_model(validation_data)
                 self._model.train()
                 accuracy = accuracy_score(validation_data[1], val_label)

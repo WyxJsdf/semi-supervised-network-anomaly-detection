@@ -92,12 +92,12 @@ class Config(object):
     # training parameters
     self.num_layers = 2
     self.batch_size = 64
-    self.lr = 0.001
+    self.lr = 0.0005
     self.save_path = "result"
     self.init()
 
     # model parameters
-    self.hidden_size = 64
+    self.hidden_size = 32
     self.embedding_size = embedding_size
     self.num_classes = 2
     self.seq_length = window_size
@@ -124,7 +124,7 @@ class LSTMModel(nn.Module):
         # self.embedding = nn.Embedding(config.vocab_size, config.embedding_size)
         self.config = config
 
-        self.encoder = RAEEncoder(config.embedding_size, config.hidden_size)
+        self.encoder = RAEEncoder(config.device, config.embedding_size, config.hidden_size)
         self.decoder = RAEDecoder(config.device, config.hidden_size, config.embedding_size)
 
         self.classifier = nn.Linear(config.hidden_size, config.num_classes)
@@ -186,7 +186,7 @@ class LSTMAutoEncoderChain():
         self._model = self._model.to(self._device)
 
 
-    def train_model(self, train_labeled_data, train_unlabeled_data, validation_data, epoch=20, batch_size=64):
+    def train_model(self, train_labeled_data, train_unlabeled_data, validation_data, epoch=2000, batch_size=128):
         # feature_labeled = feature_labeled.trans
         feature_unlabeled, seq_length_unlabeled = train_unlabeled_data
         feature_labeled, label, seq_length_labeled = train_labeled_data
@@ -196,8 +196,8 @@ class LSTMAutoEncoderChain():
                                                    torch.from_numpy(seq_length_labeled))
         train_dataset_unlabeled = Data.TensorDataset(torch.from_numpy(feature_unlabeled),
                                                      torch.from_numpy(seq_length_unlabeled))
-        train_loader_labeled = Data.DataLoader(dataset=train_dataset_labeled, batch_size=64, shuffle=True)
-        train_loader_unlabeled = Data.DataLoader(dataset=train_dataset_unlabeled, batch_size=64, shuffle=True)
+        train_loader_labeled = Data.DataLoader(dataset=train_dataset_labeled, batch_size=batch_size, shuffle=True)
+        train_loader_unlabeled = Data.DataLoader(dataset=train_dataset_unlabeled, batch_size=batch_size, shuffle=True)
         self._model.train()
         for epoch_id in range(10):
             train_loss = 0
@@ -235,16 +235,17 @@ class LSTMAutoEncoderChain():
                         epoch_id, (step + 1)* len(train_batch), len(train_loader_labeled.dataset),
                         100. * (step + 1) / len(train_loader_labeled), train_loss / self._log_interval))
                     train_loss = 0
-            val_label, val_score, classify_score = self.evaluate_model(validation_data)
-            self._model.train()
-            roc=roc_auc_score(validation_data[1], val_score)
-            print("roc auc= %.6lf" %(roc))
-            roc=roc_auc_score(validation_data[1], classify_score)
-            print("roc auc classifer= %.6lf" %(roc))
-            accuracy = accuracy_score(validation_data[1], val_label)
-            f1 = f1_score(validation_data[1], val_label, average='binary', pos_label=1)
-            print('Validation Data Accuray = %.6lf' %(accuracy))
-            print('Validation Data F1 Score = %.6lf' %(f1))
+            if epoch_id % 200 == 0:
+                val_label, val_score, classify_score = self.evaluate_model(validation_data)
+                self._model.train()
+                roc=roc_auc_score(validation_data[1], val_score)
+                print("roc auc= %.6lf" %(roc))
+                roc=roc_auc_score(validation_data[1], classify_score)
+                print("roc auc classifer= %.6lf" %(roc))
+                accuracy = accuracy_score(validation_data[1], val_label)
+                f1 = f1_score(validation_data[1], val_label, average='binary', pos_label=1)
+                print('Validation Data Accuray = %.6lf' %(accuracy))
+                print('Validation Data F1 Score = %.6lf' %(f1))
 
 
 
