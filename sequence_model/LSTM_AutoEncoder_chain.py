@@ -97,7 +97,7 @@ class Config(object):
     self.init()
 
     # model parameters
-    self.hidden_size = 32
+    self.hidden_size = 64
     self.embedding_size = embedding_size
     self.num_classes = 2
     self.seq_length = window_size
@@ -179,7 +179,7 @@ class LSTMAutoEncoderChain():
         self._model = LSTMModel(self._config).double()
         self._criterion = nn.MSELoss(size_average=True)
         # self._criterion_classify = nn.CrossEntropyLoss()
-        self._criterion_classify = FocalLoss(alpha=torch.Tensor([1, 0.25]))
+        self._criterion_classify = FocalLoss(alpha=torch.Tensor())
 
         self._optimizer = torch.optim.Adam(self._model.parameters(), lr=self._config.lr)
         self._log_interval = 100
@@ -235,7 +235,7 @@ class LSTMAutoEncoderChain():
                         epoch_id, (step + 1)* len(train_batch), len(train_loader_labeled.dataset),
                         100. * (step + 1) / len(train_loader_labeled), train_loss / self._log_interval))
                     train_loss = 0
-            if epoch_id % 200 == 0:
+            if epoch_id % (int(epoch / 10)) == 0:
                 val_label, val_score, classify_score = self.evaluate_model(validation_data)
                 self._model.train()
                 roc=roc_auc_score(validation_data[1], val_score)

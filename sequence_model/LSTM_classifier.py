@@ -201,7 +201,7 @@ class LSTMClassifier():
                         100. * (step + 1) / len(train_loader), train_acc, train_loss / self._log_interval))
                     train_loss = 0
                 # torch.save(model.state_dict(), os.path.join(config.save_path, "model.ckpt"))
-            if epoch_id % 200 == 0:
+            if epoch_id % (int(epoch / 10))== 0:
                 val_label, classify_score = self.evaluate_model(validation_data)
                 self._model.train()
                 accuracy = accuracy_score(validation_data[1], val_label)

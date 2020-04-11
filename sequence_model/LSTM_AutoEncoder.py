@@ -170,9 +170,10 @@ class LSTMModel(nn.Module):
 
 
 class LSTMAutoEncoder():
-    def __init__(self, embedding_size, window_size, cuda):
+    def __init__(self, embedding_size, window_size, cuda, sava_name):
         global CUDA
         CUDA=cuda
+        self._same_name = sava_name
         self._config = Config(embedding_size, window_size)
         self._device = get_device()
         # self._model = TextRnn(self._config).double()
