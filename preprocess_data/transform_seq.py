@@ -15,7 +15,7 @@ def get_pllength_from_tuple(tuple_str):
 def get_all_from_tuple(tuple_str):
     dst_port, hlen, plen, time_stamp, TCP_winsize = tuple_str.split('|')
     
-    return (dst_port, hlen+plen, time_stamp, TCP_winsize)
+    return (dst_port, hlen, plen, time_stamp, TCP_winsize)
 
 def time_stamp_s2f(tsstr):
     return int(tsstr)
@@ -24,7 +24,7 @@ def metadata_to_str(metadata_seq):
     changed_matadata_seq = [0]*len(metadata_seq)
     pre_ts = time_stamp_s2f(metadata_seq[0][2])
     for i in range(len(metadata_seq)):
-        dst_port, pllength, time_stamp, TCP_winsize = metadata_seq[i]
+        dst_port, hlength, pllength, time_stamp, TCP_winsize = metadata_seq[i]
 
         # TODO timestamp transform
         now_ts = time_stamp_s2f(time_stamp)
@@ -32,7 +32,7 @@ def metadata_to_str(metadata_seq):
         delta_ts = now_ts - pre_ts
         pre_ts = now_ts
 
-        changed_matadata_seq[i] = (dst_port, pllength, str(delta_ts), TCP_winsize)
+        changed_matadata_seq[i] = (dst_port, hlength, pllength, str(delta_ts), TCP_winsize)
 
     seq = [ '|'.join(line) for line in changed_matadata_seq]
 
@@ -112,9 +112,9 @@ if __name__ == "__main__":
     process_num = 32
 
     
-    src_filepath = "all_seq.csv"
+    src_filepath = "all_seq_udp.csv"
 
-    dst_filepath = 'clean_all_seq.csv'
+    dst_filepath = 'clean_all_seq_udp_1.csv'
 
     transdata(src_filepath, dst_filepath, process_num, mode_add=False)
 

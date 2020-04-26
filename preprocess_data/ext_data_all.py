@@ -4,7 +4,7 @@ import sys
 import argparse
 
 absolute_path = "../../data/IDS2017/flows/out/"
-seq_filename = "clean_all_seq_udp.csv"
+seq_filename = "clean_all_seq_udp_1.csv"
 stat_filename = "clean_all_stat_udp.csv"
 output_seq_path = "all_ids2017_seq_sample"
 output_stat_path = "all_ids2017_stat_sample"
@@ -15,7 +15,7 @@ labels_seq = {}
 def parse_arguments(argv):
     parser = argparse.ArgumentParser()
     parser.add_argument('--ratio', type=float,
-        help='ratio of the anomaly data', default=0.01)
+        help='ratio of the anomaly data', default=0.1)
     return parser.parse_args(argv)
 
 def sample_all_file(all_samples=500000, anomaly_ratio=0.01):
@@ -50,9 +50,14 @@ def sample_all_file(all_samples=500000, anomaly_ratio=0.01):
     fout_seq = open(path_seq,"w",newline='')
     writer_seq = csv.writer(fout_seq,dialect='excel')
 
+    is_select = {};
+    for i in ids_pos:
+        is_select[i]=1
+    for i in ids_neg:
+        is_select[i]=1
     writer_stat.writerow(stat_header)
     for i in range(len(seq_list)):
-        if (i in ids_pos) or (i in ids_neg):
+        if (i in is_select):
             writer_seq.writerow(seq_list[i])
             writer_stat.writerow(stat_list[i])
             if seq_list[i][-1] not in labels_seq:

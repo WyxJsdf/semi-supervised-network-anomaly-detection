@@ -8,7 +8,7 @@ import time
 pd.set_option('mode.use_inf_as_na', True) # convert inf to nan
 # absolute_path = "/home/wyx/MachineLearningCSV/MachineLearningCVE/"
 absolute_path = "../GeneratedLabelledFlows/TrafficLabelling/"
-filename = 'all_stat.csv'
+filename = 'all_stat_udp.csv'
 labels = {}
 all_flows = {}
 

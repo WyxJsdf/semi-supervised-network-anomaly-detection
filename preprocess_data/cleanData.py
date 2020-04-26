@@ -19,12 +19,12 @@ src_filepaths = [fname+'_Flow.csv' for fname in src_filepaths]
 
 def main():
     # merge_all_file()
-    fout_stat = open("all_stat.csv","w",newline='')
+    fout_stat = open("all_stat_udp.csv","w",newline='')
     writer_stat = csv.writer(fout_stat,dialect='excel')
     h = 0
     h1 = 0
     h2 = 0
-    fout_seq = open("all_seq.csv","w",newline='')
+    fout_seq = open("all_seq_udp.csv","w",newline='')
     writer_seq = csv.writer(fout_seq,dialect='excel')
     for i in range(0, 5):
         print("now reading done file %d" %(i))
@@ -41,9 +41,9 @@ def main():
             if stat_list[j][-1] == 'NeedManualLabel':
                 h+=1
                 continue
-            if stat_list[j][5] != '6':
-                h1+=1
-                continue
+            # if stat_list[j][5] != '6':
+            #     h1+=1
+            #     continue
             seq_list[j-1][-1] = stat_list[j][-1]
             if (len(seq_list[j-1]) > 10000 or seq_list[j-1][0] != stat_list[j][0]):
                 h2+=1
