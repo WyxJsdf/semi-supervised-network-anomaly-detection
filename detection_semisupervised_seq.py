@@ -3,6 +3,7 @@ import argparse
 import numpy as np
 import pandas as pd
 import csv
+import json
 
 from numpy import percentile
 from sequence_model.LSTM_classifier import LSTMClassifier
@@ -23,7 +24,7 @@ FILTER_CLASS_NAME=['', 'DoS Hulk', 'DDoS', 'PortScan', 'DoS GoldenEye', 'DoS Slo
 def parse_arguments(argv):
     parser = argparse.ArgumentParser()
     parser.add_argument('inputpath', type=str, help='Path of the feature matrix to load')
-    parser.add_argument('method', type=str, choices=['sschain','mlp', 'lstm', 'ssgru'])
+    parser.add_argument('method', type=str, choices=['sschain','mlp', 'lstm', 'ssgru', 'ae'])
     parser.add_argument('output_path', type=str, help='Path of the result to save')
     parser.add_argument('--filter_class', type=int,
         help='id of filter class', default=0)
@@ -150,7 +151,7 @@ def exec_lstm_classify(train_labeled_data, test_data, epoch, save_name, device):
     dicts = {}
     dicts['test_auc'] = roc
     dicts['f1_score'] = f1_score
-    dicts['test_scores'] = list(predicted_score)
+    dicts['test_scores'] = list(classify_score)
     dicts['test_label'] = list(test_data[1].astype(np.float))
     dicts['test_raw_label'] = list(test_data[3])
     with open(new_name,"w") as f:
@@ -172,7 +173,7 @@ def exec_lstm_autoencoder(train_labeled_data, train_unlabeled_data, test_data, e
     roc=roc_auc_score(test_data[1], classify_score)
     print("roc auc classify= %.6lf" %(roc))
 
-    output_score((classify_score, predicted_score), test_data[1], 'lstmAutoencoder.csv')
+    output_score((classify_score, predicted_score, test_data[1]), 'lstmAutoencoder.csv')
     precision, recall, f1_score, accuracy = eval_data(test_data[1], predicted_label, test_data[3])
     print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf\naccuracy = %.6lf"
          %(precision, recall, f1_score, accuracy))
@@ -181,7 +182,7 @@ def exec_lstm_autoencoder(train_labeled_data, train_unlabeled_data, test_data, e
     dicts = {}
     dicts['test_auc'] = roc
     dicts['f1_score'] = f1_score
-    dicts['test_scores'] = list(predicted_score)
+    dicts['test_scores'] = list(classify_score)
     dicts['test_label'] = list(test_data[1].astype(np.float))
     dicts['test_raw_label'] = list(test_data[3])
     with open(new_name,"w") as f:
@@ -210,7 +211,7 @@ def exec_lstm_autoencoder_chain(train_labeled_data, train_unlabeled_data, test_d
     dicts = {}
     dicts['test_auc'] = roc
     dicts['f1_score'] = f1_score
-    dicts['test_scores'] = list(predicted_score)
+    dicts['test_scores'] = list(classify_score)
     dicts['test_label'] = list(test_data[1].astype(np.float))
     dicts['test_raw_label'] = list(test_data[3])
     with open(new_name,"w") as f:
@@ -218,9 +219,9 @@ def exec_lstm_autoencoder_chain(train_labeled_data, train_unlabeled_data, test_d
     f.close()
 
 
-def exec_simplenn_torch(train_labeled_data, validate_data, test_data, epoch, contam, focal, save_name):
+def exec_simplenn_torch(train_labeled_data, test_data, epoch, contam, focal, save_name):
     simpleNN = ModelNNTorch(train_labeled_data[0].shape[-1], focal)
-    simpleNN.train_model(train_labeled_data, validate_data, epoch=epoch)
+    simpleNN.train_model(train_labeled_data, test_data, epoch=epoch)
     predicted_label, predicted_score = simpleNN.evaluate_model(test_data)
     precision, recall, f1_score, accuracy = eval_data(test_data[1], predicted_label, test_data[3])
     print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf\naccuracy = %.6lf"
@@ -238,18 +239,18 @@ def exec_simplenn_torch(train_labeled_data, validate_data, test_data, epoch, con
         json.dump(dicts,f)
     f.close()
 
-def exec_autoencoder(train_feature, test_feature, test_label, contam):
+def exec_autoencoder(train_feature, test_data, contam):
     print("now execute the model AutoEncoder by Pytorch!")
     autoencoder = AutoEncoder(train_feature.shape[-1])
-    autoencoder.train_model(train_feature, test_feature, test_label)
-    predicted_score = autoencoder.evaluate_model(test_feature)
+    autoencoder.train_model(train_feature, test_data[0], test_data[1])
+    predicted_score = autoencoder.evaluate_model(test_data[0])
     predicted_label = get_label_n(predicted_score, contam)
 
-    roc=roc_auc_score(test_label, predicted_score)
+    roc=roc_auc_score(test_data[1], predicted_score)
     print("roc auc= %.6lf" %(roc))
 
-    precision, recall, f1_score = eval_data(test_label, predicted_label)
-    print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf" %(precision, recall, f1_score))
+    # precision, recall, f1_score = eval_data(test_label, predicted_label)
+    # print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf" %(precision, recall, f1_score))
 
 
 def main(args):
@@ -260,9 +261,13 @@ def main(args):
 
     train_data, test_data = split_dataset_horizontal(dataset, 0.6, True)
 
-    train_data = clear_specific_class(train_data, FILTER_CLASS_NAME[args.filter_class])
+    # train_data = clear_specific_class(train_data, FILTER_CLASS_NAME[args.filter_class])
 
     train_labeled_data, train_unlabeled_data = split_dataset_horizontal(train_data, args.ratio_label, False)
+
+    train_labeled_data = clear_specific_class(train_labeled_data, FILTER_CLASS_NAME[args.filter_class])
+
+
     train_labeled_feature, train_label, train_labeled_seqlen, train_raw_label = transform(train_labeled_data)
     train_unlabeled_feature, _, train_unlabeled_seqlen, _ = transform(train_unlabeled_data)
     test_feature, test_label, test_seqlen, test_raw_label = transform(test_data)
@@ -286,18 +291,25 @@ def main(args):
     save_name = "{}_{:.2f}_{}".format(args.method, args.ratio_label, FILTER_CLASS_NAME[args.filter_class])
     save_name = args.output_path + '/' + save_name
 
-    train_labeled_data = (train_labeled_feature, train_label, train_labeled_seqlen, train_raw_label)
+    if args.method == 'mlp':
+        train_labeled_feature = train_labeled_feature.reshape(len(train_label), -1)
+        test_feature = test_feature.reshape(len(test_label), -1)
+    if args.method =='ae':
+        train_unlabeled_feature = train_unlabeled_feature.reshape(train_unlabeled_feature.shape[0], -1)
+        test_feature = test_feature.reshape(len(test_label), -1)
+    train_labeled_data = (train_labeled_feature, train_label, train_labeled_seqlen)
     train_unlabeled_data = (train_unlabeled_feature, train_unlabeled_seqlen)
     test_data = (test_feature, test_label, test_seqlen, test_raw_label)
     if args.method == 'lstm':
-        exec_lstm_classify(train_labeled_data, test_data, args.epoch, args.device, save_name)
+        exec_lstm_classify(train_labeled_data, test_data, args.epoch, save_name, args.device)
     elif args.method == 'mlp':
-        train_labeled_data[0] = train_labeled_data[0].reshape(len(train_labeled_data[1]), -1)
         exec_simplenn_torch(train_labeled_data, test_data, args.epoch, args.contam,False, save_name)
+    elif args.method == 'ae':
+        exec_autoencoder(train_unlabeled_feature, test_data, args.contam)
     elif args.method == 'sschain':
-        exec_lstm_autoencoder_chain(train_labeled_data, train_unlabeled_data, test_data, args.epoch, args.device, save_name)
+        exec_lstm_autoencoder_chain(train_labeled_data, train_unlabeled_data, test_data, args.epoch, save_name, args.device)
     elif args.method == 'ssgru':
-        exec_lstm_autoencoder(train_labeled_data, train_unlabeled_data, test_data, args.epoch, args.device, save_name)
+        exec_lstm_autoencoder(train_labeled_data, train_unlabeled_data, test_data, args.epoch, save_name, args.device)
 
 
 if __name__ == '__main__':

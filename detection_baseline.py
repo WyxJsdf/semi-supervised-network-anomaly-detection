@@ -156,7 +156,7 @@ def exec_isolate_forest(train_feature, test_data, contam, save_name):
 
     roc=roc_auc_score(test_data[1], predicted_score)
     print("roc auc= %.6lf" %(roc))
-    new_name = "{}_{:.4f}.csv".format(save_name, roc)
+    new_name = "{}_{:.4f}.json".format(save_name, roc)
     output_score((test_data[1], predicted_score), new_name)
     dicts = {}
     dicts['test_auc'] = roc
@@ -182,13 +182,17 @@ def main(args):
     validate_data=test_data
 
 
-    train_data = clear_specific_class(train_data, FILTER_CLASS_NAME[args.filter_class])
+    # train_data = clear_specific_class(train_data, FILTER_CLASS_NAME[args.filter_class])
     # validate_data = clear_specific_class(validate_data, FILTER_CLASS_NAME)
 
     # for i in range(train_data.shape[1]-1):
     #     h=train_data[:,i]
     #     print("column=%d max=%.6f min=%.6f mean=%.6f" %(i, np.max(h),np.min(h),np.mean(h)))
     train_labeled_data, train_unlabeled_data = split_dataset_horizontal(train_data, args.ratio_label, False)
+
+
+    train_labeled_data = clear_specific_class(train_labeled_data, FILTER_CLASS_NAME[args.filter_class])
+
 
     train_labeled_feature, train_label, train_raw_label = split_dataset_vertical(train_labeled_data)
     train_unlabeled_feature, _, _ = split_dataset_vertical(train_unlabeled_data)

@@ -8,7 +8,8 @@ import torch.utils.data as Data
 from torch.autograd import Variable
 
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
-
+from sequence_model.rae import Encoder as RAEEncoder
+from sequence_model.rae import Decoder as RAEDecoder
 CUDA = 'cuda:4'
 
 def get_device():
@@ -18,6 +19,23 @@ def get_device():
         device = 'cpu'
     print(device)
     return device
+
+def print_confidence_each_class(predicted_score, raw_label):
+    sum_classes = {}
+    num_classes = {}
+    # h = []
+    for i in range(len(predicted_score)):
+        if raw_label[i] not in sum_classes:
+            sum_classes[raw_label[i]] = 0
+            num_classes[raw_label[i]] = 0
+        # if raw_label[i] == FILTER_CLASS_NAME:
+            # h.append(predicted_score[i])
+            # print("class:%s confidence:%.6lf classify:%.6lf" %(raw_label[i], confidence[i], predicted_score[i]))
+        sum_classes[raw_label[i]] += predicted_score[i]
+        num_classes[raw_label[i]] += 1
+    # print(h)
+    for p in sum_classes:
+        print("confidence of %s: %.6lf" %(p, sum_classes[p] / num_classes[p]))
 
 class FocalLoss(nn.Module):
     r"""
@@ -95,7 +113,7 @@ class Config(object):
     self.init()
 
     # model parameters
-    self.hidden_size = 64
+    self.hidden_size = 32
     self.embedding_size = embedding_size
     self.num_classes = 2
     self.seq_length = 20
@@ -153,18 +171,49 @@ class TextRnn(nn.Module):
     output = self.linear(output)
     return output
 
+class TextGRU(nn.Module):
+    def __init__(self, config):
+        super(TextGRU, self).__init__()
+        # self.embedding = nn.Embedding(config.vocab_size, config.embedding_size)
+        self.config = config
+
+        self.encoder = RAEEncoder(config.device, config.embedding_size, config.hidden_size)
+
+        self.classifier = nn.Linear(config.hidden_size, config.num_classes)
+
+    def last_timestep(self, unpacked, lengths):
+        # Index of the last output for each sequence.
+        idx = (lengths - 1).view(-1, 1).expand(unpacked.size(0),
+                                               unpacked.size(2)).unsqueeze(1)
+        return unpacked.gather(1, idx).squeeze()
+
+    def forward(self, input_data, seq_lengths):
+        """
+        :param input_data: [batch_size, seq_length]
+        :return:
+        """
+        sorted_seq_lengths, indices = torch.sort(seq_lengths, descending=True)
+        _, desorted_indices = torch.sort(indices, descending=False)
+        packed_input = nn.utils.rnn.pack_padded_sequence(input_data[indices],
+                                                         sorted_seq_lengths,
+                                                         batch_first=True)
+        classify_out, output = self.encoder(packed_input)
+            # output, _ = nn.utils.rnn.pad_packed_sequence(classify_out, batch_first=True)
+        output = output[desorted_indices]
+            # output = self.last_timestep(output, seq_lengths)
+        return self.classifier(output)
 
 class LSTMClassifier():
     def __init__(self, embedding_size, cuda):
         global CUDA
         CUDA=cuda
         self._config = Config(embedding_size)
-        self._model = TextRnn(self._config).double()
+        self._model = TextGRU(self._config).double()
         self._criterion = nn.CrossEntropyLoss()
         self._criterion_classify = FocalLoss()
 
         self._optimizer = torch.optim.Adam(self._model.parameters(), lr=self._config.lr)
-        self._log_interval = 10
+        self._log_interval = 100
         self._device = get_device()
         self._model = self._model.to(self._device)
 
@@ -181,7 +230,6 @@ class LSTMClassifier():
         for epoch_id in range(epoch):
             for step, train_data in enumerate(train_loader):
                 train_batch, train_label, train_seq_length = train_data
-                nn.utils.rnn.pack_padded_sequence
                 train_batch = train_batch.to(self._device)
                 train_label = train_label.to(self._device)
                 train_seq_length = train_seq_length.to(self._device)
@@ -207,6 +255,7 @@ class LSTMClassifier():
                 accuracy = accuracy_score(validation_data[1], val_label)
                 f1 = f1_score(validation_data[1], val_label, average='binary', pos_label=1)
                 roc=roc_auc_score(validation_data[1], classify_score)
+                print_confidence_each_class(classify_score, validation_data[3])
                 print("roc_classify= %.6lf" %(roc))
                 print('Validation Data Accuray = %.6lf' %(accuracy))
                 print('Validation Data F1 Score = %.6lf' %(f1))
@@ -217,7 +266,7 @@ class LSTMClassifier():
         return np.sqrt(np.sum(euclidean_sq, axis=1)).ravel()
 
     def evaluate_model(self, test_data):
-        feature, label, seq_length = test_data
+        feature, label, seq_length, _ = test_data
         self._model.eval()
         test_data = Data.TensorDataset(torch.from_numpy(feature),
                                        torch.from_numpy(label),
@@ -233,6 +282,7 @@ class LSTMClassifier():
             test_seq_length = test_seq_length.to(self._device)
 
             output = self._model(test_batch, test_seq_length)
+            output = F.softmax(output, dim=1)
             _, predicted = torch.max(output.data, 1)
             score = output.data[:, 1]
             h = predicted.cpu().numpy()

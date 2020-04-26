@@ -113,7 +113,7 @@ class ModelNNTorch():
     def __init__(self, num_features, focal):
         self._model = ModelAutoEncoder(num_features).double()
         if focal:
-            self._criterion_classify = FocalLoss(alpha=torch.Tensor([[1],[0.25]]))
+            self._criterion_classify = FocalLoss()
         else:
             self._criterion_classify = nn.CrossEntropyLoss()
 

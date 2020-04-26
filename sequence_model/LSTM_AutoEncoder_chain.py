@@ -179,7 +179,7 @@ class LSTMAutoEncoderChain():
         self._model = LSTMModel(self._config).double()
         self._criterion = nn.MSELoss(size_average=True)
         # self._criterion_classify = nn.CrossEntropyLoss()
-        self._criterion_classify = FocalLoss(alpha=torch.Tensor())
+        self._criterion_classify = FocalLoss()
 
         self._optimizer = torch.optim.Adam(self._model.parameters(), lr=self._config.lr)
         self._log_interval = 100
@@ -254,7 +254,7 @@ class LSTMAutoEncoderChain():
         return np.sum(np.sqrt(np.sum(euclidean_sq, axis=2)), axis=1).ravel() / (seq_length.astype(np.double))
 
     def evaluate_model(self, test_data):
-        feature, label, seq_length = test_data
+        feature, label, seq_length, _ = test_data
         self._model.eval()
         test_dataset = Data.TensorDataset(torch.from_numpy(feature),
                                        torch.from_numpy(seq_length))

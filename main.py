@@ -14,7 +14,7 @@ from sklearn.metrics import roc_auc_score, auc, precision_recall_curve
 
 from keras.utils import to_categorical
 
-FILTER_CLASS_NAME=['', 'DoS Hulk', 'DDoS', 'PortScan', 'DoS GoldenEye', 'DoS Slowhttptest', 'DoS slowloris', 'FTP-Patator', 'SSH-Patator']
+FILTER_CLASS_NAME=['', 'DoS Hulk', 'DDoS', 'PortScan']
 # import os
 # os.environ["CUDA_VISIBLE_DEVICES"] = "6"
 
@@ -28,7 +28,7 @@ def parse_arguments(argv):
         help='number of the training epochs', default=10)
     parser.add_argument('--batch_size', type=int,
         help='number of the batch_size', default=128)
-    parser.add_argument('--theta', type=int,
+    parser.add_argument('--theta', type=float,
         help='theta for confidence estimate', default=50)
     parser.add_argument('--seed', type=int,
         help='random seed', default=1310)
@@ -157,11 +157,13 @@ def main(args):
     validate_data=test_data
 
     
-    train_data = clear_specific_class(train_data, FILTER_CLASS_NAME[args.filter_class])
+    # train_data = clear_specific_class(train_data, FILTER_CLASS_NAME[args.filter_class])
     # validate_data = clear_specific_class(validate_data, FILTER_CLASS_NAME[args.filter_class])
 
 
     train_labeled_data, train_unlabeled_data = split_dataset_horizontal(train_data, args.ratio_label, False)
+
+    train_labeled_data = clear_specific_class(train_labeled_data, FILTER_CLASS_NAME[args.filter_class])
 
     train_labeled_feature, train_label, train_raw_label = split_dataset_vertical(train_labeled_data)
     train_unlabeled_feature, _, _ = split_dataset_vertical(train_unlabeled_data)
