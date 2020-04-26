@@ -3,6 +3,7 @@ import argparse
 import numpy as np
 import pandas as pd
 import csv
+import json
 
 from numpy import percentile
 from sequence_model.estimate_gru_ae import LSTMAutoEncoder
@@ -139,7 +140,7 @@ def exec_lstm_autoencoder(train_labeled_data, train_unlabeled_data, test_data, e
     print("now execute the model LSTM AutoEncoder by Pytorch!")
     lstmAutoencoder = LSTMAutoEncoder(train_unlabeled_data[0].shape[2], train_unlabeled_data[0].shape[1], device,save_name, theta=theta)
     lstmAutoencoder.train_model(train_labeled_data, train_unlabeled_data, test_data, epoch=epoch, batch_size=batch_size)
-    predicted_label, predicted_score, classify_score = lstmAutoencoder.evaluate_model(test_data)
+    predicted_label, predicted_score, classify_score, confidence_score = lstmAutoencoder.evaluate_model(test_data)
     # predicted_label = get_label_n(predicted_score, contam)
 
     roc=roc_auc_score(test_data[1], predicted_score)
@@ -148,7 +149,7 @@ def exec_lstm_autoencoder(train_labeled_data, train_unlabeled_data, test_data, e
     roc=roc_auc_score(test_data[1], classify_score)
     print("roc auc classify= %.6lf" %(roc))
 
-    output_score((classify_score, predicted_score), test_data[1], 'lstmAutoencoder.csv')
+    output_score((classify_score, predicted_score, test_data[1]), 'lstmAutoencoder.csv')
     precision, recall, f1_score, accuracy = eval_data(test_data[1], predicted_label, test_data[3])
     print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf\naccuracy = %.6lf"
          %(precision, recall, f1_score, accuracy))
@@ -158,6 +159,7 @@ def exec_lstm_autoencoder(train_labeled_data, train_unlabeled_data, test_data, e
     dicts['test_auc'] = roc
     dicts['f1_score'] = f1_score
     dicts['test_scores'] = list(predicted_score)
+    dicts['conf_scores'] = list(confidence_score)
     dicts['test_label'] = list(test_data[1].astype(np.float))
     dicts['test_raw_label'] = list(test_data[3])
     with open(new_name,"w") as f:
@@ -194,7 +196,7 @@ def main(args):
     test_feature = test_feature.reshape(len(test_feature), WINDOW_SIZE, -1)
     print("Preprocessing Data done......")
 
-    save_name = "{}_{:.2f}_{}".format(args.method, args.ratio_label, FILTER_CLASS_NAME[args.filter_class])
+    save_name = "{}_{:.2f}_{}".format('ue-ssgru', args.ratio_label, FILTER_CLASS_NAME[args.filter_class])
     save_name = args.output_path + '/' + save_name
 
     train_labeled_data = (train_labeled_feature, train_label, train_labeled_seqlen)

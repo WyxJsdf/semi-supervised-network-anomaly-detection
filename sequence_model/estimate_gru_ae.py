@@ -6,6 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.data as Data
 from torch.autograd import Variable
+import json
 
 from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
 from sequence_model.rae import Encoder as RAEEncoder
@@ -58,7 +59,7 @@ class FocalLoss(nn.Module):
     def forward(self, inputs, targets):
         N = inputs.size(0)
         C = inputs.size(1)
-        P = F.softmax(inputs)
+        #P = F.softmax(inputs)
 
         class_mask = inputs.data.new(N, C).fill_(0)
         class_mask = Variable(class_mask)
@@ -69,7 +70,7 @@ class FocalLoss(nn.Module):
 
         alpha = self.alpha[ids.data.view(-1)].to(self._device)
 
-        probs = (P*class_mask).sum(1).view(-1,1)
+        probs = (inputs*class_mask).sum(1).view(-1,1)
 
         log_p = probs.log()
         #print('probs size= {}'.format(probs.size()))
@@ -111,12 +112,12 @@ class Config(object):
     # training parameters
     self.num_layers = 2
     self.batch_size = 64
-    self.lr = 0.0005
+    self.lr = 0.001
     self.save_path = "result"
     self.init()
 
     # model parameters
-    self.hidden_size = 64
+    self.hidden_size = 32
     self.embedding_size = embedding_size
     self.num_classes = 2
     self.seq_length = window_size
@@ -235,6 +236,7 @@ class LSTMAutoEncoder():
         train_loader_unlabeled = Data.DataLoader(dataset=train_dataset_unlabeled, batch_size=batch_size, shuffle=True)
         train_loss = 0
         epoch_id = 0; step = 0
+        lmbda = 0.1
         iter_unlabeled = iter(train_loader_unlabeled)
         iter_labeled = iter(train_loader_labeled)
         self._model.train()
@@ -313,19 +315,32 @@ class LSTMAutoEncoder():
                 print("roc auc= %.6lf" %(roc))
                 roc=roc_auc_score(validation_data[1], classify_score)
                 print("roc auc classifer= %.6lf" %(roc))
+                new_score = classify_score - 0.05 * confidence_score
+                roc=roc_auc_score(validation_data[1], new_score)
+                print("roc auc 0-0.05= %.6lf" %(roc))
+                new_score = classify_score - 0.15 * confidence_score
+                roc=roc_auc_score(validation_data[1], new_score)
+                print("roc auc 0-0.15= %.6lf" %(roc))
+                new_score = classify_score * confidence_score - 0.15 * confidence_score
+                roc=roc_auc_score(validation_data[1], new_score)
+                print("roc auc 1-0.15= %.6lf" %(roc))
+                new_score = classify_score * confidence_score - 0.05 * confidence_score
+                roc=roc_auc_score(validation_data[1], new_score)
+                print("roc auc 1-0.05= %.6lf" %(roc))
+
                 accuracy = accuracy_score(validation_data[1], val_label)
                 f1 = f1_score(validation_data[1], val_label, average='binary', pos_label=1)
                 print('Validation Data Accuray = %.6lf' %(accuracy))
                 print('Validation Data F1 Score = %.6lf' %(f1))
-                print_confidence_each_class(classify_score, validate_data[2])
-                print_confidence_each_class(confidence_score, validate_data[2])
+                print_confidence_each_class(classify_score, validation_data[3])
+                print_confidence_each_class(confidence_score, validation_data[3])
                 if roc > max_score:
-                    max_score = roc
-                    new_name = "{}_{:.4f}.json".format(self._save_name, roc)
+                    # max_score = roc
+                    new_name = "{}_{:.4f}_{}.json".format(self._save_name, roc, epoch_id)
                     dicts = {}
                     dicts['test_auc'] = roc
                     dicts['f1_score'] = f1
-                    dicts['test_scores'] = list(classify_score)
+                    dicts['cls_scores'] = list(classify_score)
                     dicts['conf_scores'] = list(confidence_score)
                     dicts['test_label'] = list(validation_data[1].astype(np.float))
                     dicts['test_raw_label'] = list(validation_data[3])
@@ -340,13 +355,13 @@ class LSTMAutoEncoder():
             loss = self._criterion(output, train_batch)
             self._optimizer.zero_grad()
             loss.backward()
-            train_loss += loss.data.cpu().numpy()
+            # train_loss += loss.data.cpu().numpy()
             self._optimizer.step()
 
             if (step + 1)% self._log_interval == 0:
-                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.8f}'.format(
+                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.8f}\tLambda {:.8f}'.format(
                     epoch_id, (step + 1)* len(train_batch), len(train_loader_unlabeled.dataset),
-                    100. * (step + 1) / len(train_loader_unlabeled), train_loss / self._log_interval))
+                    100. * (step + 1) / len(train_loader_unlabeled), train_loss / self._log_interval, lmbda))
                 train_loss = 0
                 # torch.save(model.state_dict(), os.path.join(config.save_path, "model.ckpt"))
             step += 1

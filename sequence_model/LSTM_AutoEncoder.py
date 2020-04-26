@@ -6,12 +6,16 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.data as Data
 from torch.autograd import Variable
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
+
+import json
 
 from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
 from sequence_model.rae import Encoder as RAEEncoder
 from sequence_model.rae import Decoder as RAEDecoder
 
 CUDA = 'cuda:0'
+max_score = 0
 
 def get_device():
     if torch.cuda.is_available():
@@ -168,18 +172,35 @@ class LSTMModel(nn.Module):
     def set_supervised_flag(self,supervised):
         self.supervised = supervised
 
+def print_confidence_each_class(predicted_score, raw_label):
+    sum_classes = {}
+    num_classes = {}
+    # h = []
+    for i in range(len(predicted_score)):
+        if raw_label[i] not in sum_classes:
+            sum_classes[raw_label[i]] = 0
+            num_classes[raw_label[i]] = 0
+        # if raw_label[i] == FILTER_CLASS_NAME:
+            # h.append(predicted_score[i])
+            # print("class:%s confidence:%.6lf classify:%.6lf" %(raw_label[i], confidence[i], predicted_score[i]))
+        sum_classes[raw_label[i]] += predicted_score[i]
+        num_classes[raw_label[i]] += 1
+    # print(h)
+    for p in sum_classes:
+        print("confidence of %s: %.6lf" %(p, sum_classes[p] / num_classes[p]))
+    print()
 
 class LSTMAutoEncoder():
-    def __init__(self, embedding_size, window_size, cuda, sava_name):
+    def __init__(self, embedding_size, window_size, cuda, save_name):
         global CUDA
         CUDA=cuda
-        self._same_name = sava_name
+        self._save_name = save_name
         self._config = Config(embedding_size, window_size)
         self._device = get_device()
         # self._model = TextRnn(self._config).double()
         self._model = LSTMModel(self._config).double()
         self._criterion = nn.MSELoss(size_average=True)
-        # self._criterion_classify = nn.CrossEntropyLoss()
+        self._criterion_classify = nn.CrossEntropyLoss()
         self._criterion_classify = FocalLoss()
 
         self._optimizer = torch.optim.Adam(self._model.parameters(), lr=self._config.lr)
@@ -189,6 +210,7 @@ class LSTMAutoEncoder():
 
     def train_model(self, train_labeled_data, train_unlabeled_data, validation_data, epoch=20, batch_size=128):
         # feature_labeled = feature_labeled.trans
+        global max_score
         feature_unlabeled, seq_length_unlabeled = train_unlabeled_data
         feature_labeled, label, seq_length_labeled = train_labeled_data
         print(feature_unlabeled.shape)
@@ -247,11 +269,44 @@ class LSTMAutoEncoder():
                 print("roc auc= %.6lf" %(roc))
                 roc=roc_auc_score(validation_data[1], classify_score)
                 print("roc auc classifer= %.6lf" %(roc))
+
+                val_score = MinMaxScaler().fit_transform(val_score.reshape(-1, 1)).reshape(-1)
+                val_score_0 = val_score + classify_score
+                roc_combine=roc_auc_score(validation_data[1], val_score_0)
+                print("roc_ensemble_raw= %.6lf" %(roc_combine))
+                val_score_0 = val_score/20 + classify_score
+                roc_combine=roc_auc_score(validation_data[1], val_score_0)
+                print("roc_ensemble_raw_0.05= %.6lf" %(roc_combine))
+                val_score_0 = val_score/50 + classify_score
+                roc_combine=roc_auc_score(validation_data[1], val_score_0)
+                print("roc_ensemble_raw_0.02= %.6lf" %(roc_combine))
+                val_score_0 = val_score/100 + classify_score
+                roc_combine=roc_auc_score(validation_data[1], val_score_0)
+                print("roc_ensemble_raw_0.01= %.6lf" %(roc_combine))
+                val_score_0 = val_score/200 + classify_score
+                roc_combine=roc_auc_score(validation_data[1], val_score_0)
+                print("roc_ensemble_raw_0.005= %.6lf" %(roc_combine))
+
+
                 accuracy = accuracy_score(validation_data[1], val_label)
                 f1 = f1_score(validation_data[1], val_label, average='binary', pos_label=1)
                 print('Validation Data Accuray = %.6lf' %(accuracy))
                 print('Validation Data F1 Score = %.6lf' %(f1))
 
+                print_confidence_each_class(classify_score, validation_data[3])
+                print_confidence_each_class(val_score, validation_data[3])
+                if roc > max_score:
+#                    max_score = roc
+                    new_name = "{}_{:.4f}_{}.json".format(self._save_name, roc, epoch_id)
+                    dicts = {}
+                    dicts['test_auc'] = roc
+                    dicts['f1_score'] = f1
+                    dicts['test_scores'] = list(classify_score)
+                    dicts['test_label'] = list(validation_data[1].astype(np.float))
+                    dicts['test_raw_label'] = list(validation_data[3])
+                    with open(new_name,"w") as f:
+                        json.dump(dicts,f)
+                    f.close()                    
                 train_batch, train_seq_length = next(iter_unlabeled)
 
             self._model.set_supervised_flag(False)
@@ -277,7 +332,7 @@ class LSTMAutoEncoder():
         return np.sum(np.sqrt(np.sum(euclidean_sq, axis=2)), axis=1).ravel() / (seq_length.astype(np.double))
 
     def evaluate_model(self, test_data):
-        feature, label, seq_length = test_data
+        feature, label, seq_length, _ = test_data
         self._model.eval()
         test_dataset = Data.TensorDataset(torch.from_numpy(feature),
                                        torch.from_numpy(seq_length))
