@@ -181,7 +181,6 @@ class LSTMClassifier():
         for epoch_id in range(epoch):
             for step, train_data in enumerate(train_loader):
                 train_batch, train_label, train_seq_length = train_data
-                nn.utils.rnn.pack_padded_sequence
                 train_batch = train_batch.to(self._device)
                 train_label = train_label.to(self._device)
                 train_seq_length = train_seq_length.to(self._device)

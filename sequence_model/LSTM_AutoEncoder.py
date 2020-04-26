@@ -92,12 +92,12 @@ class Config(object):
     # training parameters
     self.num_layers = 2
     self.batch_size = 64
-    self.lr = 0.0005
+    self.lr = 0.001
     self.save_path = "result"
     self.init()
 
     # model parameters
-    self.hidden_size = 64
+    self.hidden_size = 32
     self.embedding_size = embedding_size
     self.num_classes = 2
     self.seq_length = window_size

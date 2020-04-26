@@ -5,10 +5,7 @@ import pandas as pd
 import csv
 
 from numpy import percentile
-from sequence_model.LSTM_classifier import LSTMClassifier
-from sequence_model.LSTM_AutoEncoder import LSTMAutoEncoder
-from sequence_model.LSTM_AutoEncoder_chain import LSTMAutoEncoderChain
-from supervised.nn_torch import ModelNNTorch
+from sequence_model.estimate_gru_ae import LSTMAutoEncoder
 
 from sklearn.utils import shuffle
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
@@ -23,12 +20,15 @@ FILTER_CLASS_NAME=['', 'DoS Hulk', 'DDoS', 'PortScan', 'DoS GoldenEye', 'DoS Slo
 def parse_arguments(argv):
     parser = argparse.ArgumentParser()
     parser.add_argument('inputpath', type=str, help='Path of the feature matrix to load')
-    parser.add_argument('method', type=str, choices=['sschain','mlp', 'lstm', 'ssgru'])
     parser.add_argument('output_path', type=str, help='Path of the result to save')
     parser.add_argument('--filter_class', type=int,
         help='id of filter class', default=0)
     parser.add_argument('--epoch', type=int,
         help='number of the training epochs', default=10)
+    parser.add_argument('--batch_size', type=int,
+        help='number of the batch_size', default=128)
+    parser.add_argument('--theta', type=int,
+        help='theta for confidence estimate', default=50)
     parser.add_argument('--seed', type=int,
         help='random seed', default=1310)
     parser.add_argument('--ratio_label', type=float,
@@ -134,35 +134,11 @@ def get_label_n(predicted_score, contam):
     predicted_label = (predicted_score > threshold).astype('int')
     return predicted_label
 
-def exec_lstm_classify(train_labeled_data, test_data, epoch, save_name, device):
-    lstmClassifier = LSTMClassifier(train_labeled_data[0].shape[2], device)
-    lstmClassifier.train_model(train_labeled_data, test_data, epoch=epoch)
-    predicted_label, classify_score = lstmClassifier.evaluate_model(test_data)
 
-    roc=roc_auc_score(test_data[1], classify_score)
-    print("roc auc classify= %.6lf" %(roc))
-
-    precision, recall, f1_score, accuracy = eval_data(test_data[1], predicted_label, test_data[3])
-    print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf\naccuracy = %.6lf"
-         %(precision, recall, f1_score, accuracy))
-
-    new_name = "{}_{:.4f}.json".format(save_name, roc)
-    dicts = {}
-    dicts['test_auc'] = roc
-    dicts['f1_score'] = f1_score
-    dicts['test_scores'] = list(predicted_score)
-    dicts['test_label'] = list(test_data[1].astype(np.float))
-    dicts['test_raw_label'] = list(test_data[3])
-    with open(new_name,"w") as f:
-        json.dump(dicts,f)
-    f.close()
-
-
-
-def exec_lstm_autoencoder(train_labeled_data, train_unlabeled_data, test_data, epoch, save_name, device):
+def exec_lstm_autoencoder(train_labeled_data, train_unlabeled_data, test_data, epoch, save_name, device, batch_size, theta):
     print("now execute the model LSTM AutoEncoder by Pytorch!")
-    lstmAutoencoder = LSTMAutoEncoder(train_unlabeled_data[0].shape[2], train_unlabeled_data[0].shape[1], device,save_name)
-    lstmAutoencoder.train_model(train_labeled_data, train_unlabeled_data, test_data, epoch=epoch)
+    lstmAutoencoder = LSTMAutoEncoder(train_unlabeled_data[0].shape[2], train_unlabeled_data[0].shape[1], device,save_name, theta=theta)
+    lstmAutoencoder.train_model(train_labeled_data, train_unlabeled_data, test_data, epoch=epoch, batch_size=batch_size)
     predicted_label, predicted_score, classify_score = lstmAutoencoder.evaluate_model(test_data)
     # predicted_label = get_label_n(predicted_score, contam)
 
@@ -187,71 +163,6 @@ def exec_lstm_autoencoder(train_labeled_data, train_unlabeled_data, test_data, e
     with open(new_name,"w") as f:
         json.dump(dicts,f)
     f.close()
-
-
-
-def exec_lstm_autoencoder_chain(train_labeled_data, train_unlabeled_data, test_data, epoch, save_name, device):
-    lstmAutoencoder = LSTMAutoEncoderChain(train_unlabeled_data[0].shape[2], train_unlabeled_data[0].shape[1], device)
-    lstmAutoencoder.train_model(train_labeled_data, train_unlabeled_data, test_data, epoch=epoch)
-    predicted_label, predicted_score, classify_score = lstmAutoencoder.evaluate_model(test_data)
-    # predicted_label = get_label_n(predicted_score, contam)
-
-    roc=roc_auc_score(test_data[1], predicted_score)
-    print("roc auc= %.6lf" %(roc))
-
-    roc=roc_auc_score(test_data[1], classify_score)
-    print("roc auc classify= %.6lf" %(roc))
-
-    precision, recall, f1_score, accuracy = eval_data(test_data[1], predicted_label, test_data[3])
-    print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf\naccuracy = %.6lf"
-         %(precision, recall, f1_score, accuracy))
-
-    new_name = "{}_{:.4f}.json".format(save_name, roc)
-    dicts = {}
-    dicts['test_auc'] = roc
-    dicts['f1_score'] = f1_score
-    dicts['test_scores'] = list(predicted_score)
-    dicts['test_label'] = list(test_data[1].astype(np.float))
-    dicts['test_raw_label'] = list(test_data[3])
-    with open(new_name,"w") as f:
-        json.dump(dicts,f)
-    f.close()
-
-
-def exec_simplenn_torch(train_labeled_data, validate_data, test_data, epoch, contam, focal, save_name):
-    simpleNN = ModelNNTorch(train_labeled_data[0].shape[-1], focal)
-    simpleNN.train_model(train_labeled_data, validate_data, epoch=epoch)
-    predicted_label, predicted_score = simpleNN.evaluate_model(test_data)
-    precision, recall, f1_score, accuracy = eval_data(test_data[1], predicted_label, test_data[3])
-    print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf\naccuracy = %.6lf"
-         %(precision, recall, f1_score, accuracy))
-    roc=roc_auc_score(test_data[1], predicted_score)
-    print("roc= %.6lf" %(roc))
-    new_name = "{}_{:.4f}.json".format(save_name, roc)
-    dicts = {}
-    dicts['test_auc'] = roc
-    dicts['f1_score'] = f1_score
-    dicts['test_scores'] = list(predicted_score)
-    dicts['test_label'] = list(test_data[1].astype(np.float))
-    dicts['test_raw_label'] = list(test_data[3])
-    with open(new_name,"w") as f:
-        json.dump(dicts,f)
-    f.close()
-
-def exec_autoencoder(train_feature, test_feature, test_label, contam):
-    print("now execute the model AutoEncoder by Pytorch!")
-    autoencoder = AutoEncoder(train_feature.shape[-1])
-    autoencoder.train_model(train_feature, test_feature, test_label)
-    predicted_score = autoencoder.evaluate_model(test_feature)
-    predicted_label = get_label_n(predicted_score, contam)
-
-    roc=roc_auc_score(test_label, predicted_score)
-    print("roc auc= %.6lf" %(roc))
-
-    precision, recall, f1_score = eval_data(test_label, predicted_label)
-    print("precision = %.6lf\nrecall = %.6lf\nf1_score = %.6lf" %(precision, recall, f1_score))
-
-
 def main(args):
     dataset = read_data(args.inputpath)
     print("Reading Data done......")
@@ -286,18 +197,10 @@ def main(args):
     save_name = "{}_{:.2f}_{}".format(args.method, args.ratio_label, FILTER_CLASS_NAME[args.filter_class])
     save_name = args.output_path + '/' + save_name
 
-    train_labeled_data = (train_labeled_feature, train_label, train_labeled_seqlen, train_raw_label)
+    train_labeled_data = (train_labeled_feature, train_label, train_labeled_seqlen)
     train_unlabeled_data = (train_unlabeled_feature, train_unlabeled_seqlen)
     test_data = (test_feature, test_label, test_seqlen, test_raw_label)
-    if args.method == 'lstm':
-        exec_lstm_classify(train_labeled_data, test_data, args.epoch, save_name, args.device)
-    elif args.method == 'mlp':
-        train_labeled_data[0] = train_labeled_data[0].reshape(len(train_labeled_data[1]), -1)
-        exec_simplenn_torch(train_labeled_data, test_data, args.epoch, args.contam,False, save_name)
-    elif args.method == 'sschain':
-        exec_lstm_autoencoder_chain(train_labeled_data, train_unlabeled_data, test_data, args.epoch, save_name, args.device)
-    elif args.method == 'ssgru':
-        exec_lstm_autoencoder(train_labeled_data, train_unlabeled_data, test_data, args.epoch, save_name, args.device)
+    exec_lstm_autoencoder(train_labeled_data, train_unlabeled_data, test_data, args.epoch, save_name, args.device, args.batch_size, args.theta)
 
 
 if __name__ == '__main__':
