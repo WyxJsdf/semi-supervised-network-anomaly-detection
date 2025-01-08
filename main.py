@@ -137,7 +137,7 @@ def exec_autoencoder_estimator(train_labeled_data, train_unlabeled_feature, vali
     # predicted_score_std = StandardScaler().fit_transform(predicted_score.reshape(-1, 1)).reshape(-1)
     predicted_score_std = MinMaxScaler().fit_transform(predicted_score.reshape(-1, 1)).reshape(-1)
     # classify_score = StandardScaler().fit_transform(classify_score.reshape(-1, 1)).reshape(-1)
-    predicted_score_new = predicted_score_std + 2*confidence*(classify_score * classify_score-0.05)
+    predicted_score_new = 0.5 * predicted_score_std + 0.5 * classify_score
     output_score((classify_score, confidence, predicted_score, predicted_score_std, predicted_score_new, test_data[2]),
                  'score_estimator.csv')
     roc=roc_auc_score(test_data[1], predicted_score_new)

@@ -13,7 +13,7 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.metrics import f1_score, precision_score, recall_score, accuracy_score, roc_auc_score
 from unsupervised.AutoEncoder_torch import AutoEncoder
 
-WINDOW_SIZE = 20
+
 EMBEDDING_SIZE=97
 
 FILTER_CLASS_NAME=['', 'DoS Hulk', 'DDoS', 'PortScan', 'DoS GoldenEye', 'DoS Slowhttptest', 'DoS slowloris', 'FTP-Patator', 'SSH-Patator']
@@ -38,6 +38,7 @@ def parse_arguments(argv):
         help='type of gpu device', default='cpu')
     parser.add_argument('--contam', type=float,
         help='the percent of the outiers.', default=0.2)
+    parser.add_argument('--window_size', type=int, help='Window size for sequence data', default=20)
     return parser.parse_args(argv)
 
 def split_dataset_horizontal(dataset, rate=0.2, is_split=True):
@@ -72,14 +73,15 @@ def shuffle_data(data, seed=1310):
     data = shuffle(data, random_state=seed)
     return data
 
-def transform(data_list):
+def transform(data_list, args):
+    window_size = args.window_size
     features = []
     labels = []
     raw_labels = []
     seq_length = []
     for data in data_list:
         feature = []
-        for i in range(min(len(data) - 2, WINDOW_SIZE)):
+        for i in range(min(len(data) - 2, window_size)):
             dst_port, hlength, pllength, delta_ts, TCP_winsize = [int(ele) for ele in data[i].split('|')]
             # emb_src_port = big_unpackbits(src_port, 2)
             emb_dst_port = big_unpackbits(dst_port, 2)
@@ -93,8 +95,8 @@ def transform(data_list):
             # emb_TCP_winsize = np.array([TCP_winsize])
             h = np.concatenate((emb_dst_port, emb_TCP_winsize,emb_hlength, emb_pllength, emb_delta_ts))
             feature.append(h)
-        if len(data) - 2 < WINDOW_SIZE:
-            for i in range(WINDOW_SIZE + 2 - len(data)):
+        if len(data) - 2 < window_size:
+            for i in range(window_size + 2 - len(data)):
                 feature.append(np.array([0] * len(h)))
         features.append(np.stack(feature))
         labels.append(int(data[-2]))
@@ -176,9 +178,9 @@ def main(args):
     train_data = clear_specific_class(train_data, FILTER_CLASS_NAME[args.filter_class])
 
     train_labeled_data, train_unlabeled_data = split_dataset_horizontal(train_data, args.ratio_label, False)
-    train_labeled_feature, train_label, train_labeled_seqlen, train_raw_label = transform(train_labeled_data)
-    train_unlabeled_feature, _, train_unlabeled_seqlen, _ = transform(train_unlabeled_data)
-    test_feature, test_label, test_seqlen, test_raw_label = transform(test_data)
+    train_labeled_feature, train_label, train_labeled_seqlen, train_raw_label = transform(train_labeled_data, args)
+    train_unlabeled_feature, _, train_unlabeled_seqlen, _ = transform(train_unlabeled_data, args)
+    test_feature, test_label, test_seqlen, test_raw_label = transform(test_data, args)
 
     # p, scalar = scale_data(train_unlabeled_feature[:,:,-4:].reshape(-1, 4))
     # train_unlabeled_feature[:,:,-4:] = p.reshape(-1, WINDOW_SIZE, 4)
@@ -191,9 +193,9 @@ def main(args):
     train_labeled_feature, _ = scale_data(train_labeled_feature, scalar)
     test_feature, _ = scale_data(test_feature, scalar)
 
-    train_unlabeled_feature = train_unlabeled_feature.reshape(len(train_unlabeled_feature), WINDOW_SIZE, -1)
-    train_labeled_feature = train_labeled_feature.reshape(len(train_labeled_feature), WINDOW_SIZE, -1)
-    test_feature = test_feature.reshape(len(test_feature), WINDOW_SIZE, -1)
+    train_unlabeled_feature = train_unlabeled_feature.reshape(len(train_unlabeled_feature), window_size, -1)
+    train_labeled_feature = train_labeled_feature.reshape(len(train_labeled_feature), window_size, -1)
+    test_feature = test_feature.reshape(len(test_feature), window_size, -1)
     print("Preprocessing Data done......")
 
     save_name = "{}_{:.2f}_{}".format('ue-ssgru', args.ratio_label, FILTER_CLASS_NAME[args.filter_class])
